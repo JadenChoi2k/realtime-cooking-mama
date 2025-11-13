@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RTC + Realtime API Test</title>
+    <style>
+      video#localVideo {
+        max-height: 640px; /* Adjust the height as needed */
+        width: auto; /* Maintain aspect ratio */
+      }
+      video#remoteVideo {
+        max-height: 10px; /* Adjust the height as needed */
+        width: auto; /* Maintain aspect ratio */
+      }
+    </style>
+  </head>
+  <body>
+    <h2>RTC + Realtime API Test</h2>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <div style="overflow-y: auto; height: 100px">
+      <h5 id="detection_description">Detections</h5>
+      <div id="detection"></div>
+    </div>
+    <div style="overflow-y: auto; height: 100px">
+      <h5>Fridge Items</h5>
+      <div id="fridge_items" style="display: flex; flex-wrap: wrap">
+        <!-- Example of a fridge item card -->
+
+        <!-- <div class="fridge-item-card" id="fridge_item_brown-egg">
+          <span class="item-name">brown-egg</span>
+          <span class="item-quantity">3</span>
+          <button class="remove-item">x</button>
+        </div> -->
+      </div>
+      <style>
+        .fridge-item-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 1px solid #ccc;
+          padding: 5px;
+          margin: 5px;
+          border-radius: 5px;
+          width: calc(33.33% - 10px); /* Adjust width for wrapping */
+          box-sizing: border-box;
+        }
+        .item-name {
+          font-weight: bold;
+        }
+        .item-quantity {
+          margin-left: 10px;
+        }
+        .remove-item {
+          background-color: red;
+          color: white;
+          border: none;
+          border-radius: 3px;
+          cursor: pointer;
+        }
+      </style>
+    </div>
+    <div style="overflow-y: auto; height: 100px">
+      <h5>Recipe Recommendation</h5>
+      <div id="recipe_recommend" style="display: flex; flex-wrap: wrap">
+        <!-- Example of a fridge item card -->
+        <!-- <div class="fridge-item-card" id="fridge_item_brown-egg">
+          <span class="recipe-recommendation-name">brown-egg</span>
+        </div> -->
+      </div>
+      <style>
+        .recipe-recommendation-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 1px solid #ccc;
+          padding: 5px;
+          margin: 5px;
+          border-radius: 5px;
+          width: calc(33.33% - 10px); /* Adjust width for wrapping */
+          box-sizing: border-box;
+        }
+        .recipe-recommendation-name {
+          font-weight: bold;
+        }
+      </style>
+    </div>
+    <h5 id="recipe_selected"></h5>
+    <h5 id="recipe_step"></h5>
+    <h5 id="recipe_done"></h5>
+    <h3 id="user_message"></h3>
+    <h3 id="message"></h3>
+    <button id="start">Start Audio Call</button>
+    <button id="closeConnection">Close Connection</button>
+    <input type="text" id="textInput" placeholder="Enter your message here" />
+    <button id="sendMessage">Send Message</button>
+    <div style="height: 12px"></div>
+    <button id="recommend_recipe">레시피 추천</button>
+    <button id="select_crab">게살 샌드위치 먹기!</button>
+    <button id="select_wrong">잘못된 레시피 먹기!</button>
+    <button id="recipe_next">레시피 다음 단계</button>
+    <button id="recipe_prev">레시피 이전 단계</button>
+    <button id="recipe_done">레시피 완료</button>
+
+    <script>
+      let localConnection;
+      let messageDone = false;
+      let remoteStream = new MediaStream();
+      let signalingSocket;
+      const localVideo = document.getElementById("localVideo");
+      const remoteVideo = document.getElementById("remoteVideo");
+      let lastDetectionTime = null;
+
+      document.getElementById("start").onclick = async () => {
+        try {
+          // Close existing connections if any
+          if (localConnection) {
+            localConnection.close();
+            localConnection = null;
+          }
+          if (signalingSocket) {
+            signalingSocket.close();
+          }
+
+          // Create a new WebSocket connection
+          let wsUrl = "wss://yori.jdn.kr/signal";
+          if (window.location.hostname === "localhost") {
+            wsUrl = "ws://localhost:5050/signal";
+          }
+          signalingSocket = new WebSocket(wsUrl);
+
+          // Set up WebSocket message handler
+          signalingSocket.onmessage = async (message) => {
+            try {
+              const data = JSON.parse(message.data);
+              console.log(data);
+
+              if (data.type === "system") {
+                if (data.event === "password") {
+                  const password = prompt(data.data);
+                  signalingSocket.send(JSON.stringify({ password }));
+                } else if (data.event === "error") {
+                  alert(data.data);
+                }
+              }
+
+              if (data.type === "answer") {
+                // 서버에서 받은 answer 처리
+                const remoteDescription = new RTCSessionDescription({
+                  type: data.type,
+                  sdp: data.sdp,
+                });
+                await localConnection.setRemoteDescription(remoteDescription);
+              } else if (data.type === "assistant") {
+                if (data.event === "transcript") {
+                  let currentMessage =
+                    document.getElementById("message").innerText;
+                  if (messageDone || currentMessage === "") {
+                    messageDone = false;
+                    currentMessage = "GPT: ";
+                  }
+                  document.getElementById("message").innerText =
+                    currentMessage + data.data;
+                } else if (data.event === "message") {
+                  document.getElementById(
+                    "message"
+                  ).innerText = `GPT: ${data.data}`;
+                  messageDone = true;
+                } else if (data.event === "recipe_recommend") {
+                  drawRecipeRecommendationList(data.data);
+                }
+              } else if (data.type === "user") {
+                if (data.event === "transcript") {
+                  document.getElementById("user_message").innerText = `User: ${
+                    data.data.length > 0 ? data.data : "[unaudible]"
+                  }`;
+                } else if (data.event === "speech_started") {
+                  document.getElementById("user_message").innerText =
+                    "User: [speaking ...]";
+                } else if (data.event === "speech_stopped") {
+                  document.getElementById("user_message").innerText =
+                    "User: [speaking done]";
+                } else if (data.event === "object_detection") {
+                  if (lastDetectionTime) {
+                    const timeDiff = Date.now() - lastDetectionTime;
+                    document.getElementById(
+                      "detection_description"
+                    ).innerText = `Detections (${timeDiff}ms)`;
+                  }
+                  lastDetectionTime = Date.now();
+                  document.getElementById(
+                    "detection"
+                  ).innerText = `Detections: ${JSON.stringify(data.data)}`;
+                } else if (data.event === "fridge_items") {
+                  drawFridgeItems(data.data);
+                } else if (data.event === "recipe_selected") {
+                  document.getElementById(
+                    "recipe_selected"
+                  ).innerText = `Recipe Selected: ${data.data.name}`;
+                } else if (data.event === "recipe_step") {
+                  document.getElementById(
+                    "recipe_step"
+                  ).innerText = `Step ${data.data.order}: ${data.data.description}`;
+                } else if (data.event === "recipe_completed") {
+                  document.getElementById(
+                    "recipe_done"
+                  ).innerText = `Recipe Done! (${JSON.stringify(data.data)})`;
+                }
+              } else if (data.candidate) {
+                // 서버에서 받은 ICE 후보 처리
+                const candidate = new RTCIceCandidate({
+                  candidate: data.candidate,
+                  sdpMid: data.sdpMid,
+                  sdpMLineIndex: data.sdpMLineIndex,
+                });
+                await localConnection.addIceCandidate(candidate);
+              }
+            } catch (error) {
+              console.error("Error handling signaling message:", error);
+            }
+          };
+
+          // Get user's video and audio stream
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasVideo = devices.some(
+            (device) => device.kind === "videoinput"
+          );
+
+          const localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: hasVideo ? { facingMode: { ideal: "environment" } } : false,
+          });
+          localVideo.srcObject = localStream;
+
+          // Set up RTCPeerConnection
+          localConnection = new RTCPeerConnection();
+
+          // Add local stream tracks to peer connection
+          localStream.getTracks().forEach((track) => {
+            localConnection.addTrack(track, localStream);
+          });
+
+          // Handle ICE candidates
+          localConnection.onicecandidate = ({ candidate }) => {
+            if (candidate) {
+              signalingSocket.send(
+                JSON.stringify({
+                  type: "candidate",
+                  candidate: candidate.candidate,
+                  sdpMid: candidate.sdpMid,
+                  sdpMLineIndex: candidate.sdpMLineIndex,
+                })
+              );
+            }
+          };
+
+          localConnection.onconnectionstatechange = (event) => {
+            console.log("P2P Connection state:", event.target.connectionState);
+          };
+
+          localConnection.onnegotiationneeded = async () => {
+            console.log("Negotiation needed");
+          };
+
+          localConnection.ontrack = (event) => {
+            console.log("Track received:", event.track.kind);
+            if (!remoteStream.getTracks().includes(event.track)) {
+              remoteStream.addTrack(event.track);
+            }
+            remoteVideo.srcObject = remoteStream;
+          };
+
+          // Create and send offer
+          const offer = await localConnection.createOffer();
+          await localConnection.setLocalDescription(offer);
+
+          const offerData = {
+            type: offer.type,
+            sdp: offer.sdp,
+          };
+          signalingSocket.send(JSON.stringify(offerData));
+        } catch (error) {
+          console.error(
+            "Error during offer creation or media stream acquisition:",
+            error
+          );
+        }
+      };
+
+      document.getElementById("sendMessage").onclick = () => {
+        const textInput = document.getElementById("textInput").value;
+        if (textInput.trim() !== "") {
+          const messageData = {
+            type: "message",
+            data: textInput,
+          };
+          signalingSocket.send(JSON.stringify(messageData));
+          document.getElementById("textInput").value = ""; // Clear the input field
+        }
+      };
+
+      document.getElementById("recommend_recipe").onclick = () => {
+        signalingSocket.send(JSON.stringify({ type: "recommend_recipe" }));
+      };
+      document.getElementById("select_crab").onclick = () => {
+        selectRecipe(1);
+      };
+      document.getElementById("select_wrong").onclick = () => {
+        selectRecipe(2);
+      };
+      document.getElementById("recipe_next").onclick = () => {
+        signalingSocket.send(
+          JSON.stringify({ type: "recipe_cook", data: "go_next_step" })
+        );
+      };
+      document.getElementById("recipe_prev").onclick = () => {
+        signalingSocket.send(
+          JSON.stringify({ type: "recipe_cook", data: "go_previous_step" })
+        );
+      };
+      document.getElementById("recipe_done").onclick = () => {
+        signalingSocket.send(
+          JSON.stringify({ type: "recipe_cook", data: "done" })
+        );
+      };
+
+      document.getElementById("closeConnection").onclick = () => {
+        if (localConnection) {
+          localConnection.close();
+          localConnection = null;
+          console.log("P2P Connection closed.");
+        }
+        if (signalingSocket) {
+          signalingSocket.close();
+          console.log("WebSocket connection closed.");
+        }
+      };
+
+      function drawFridgeItems(items) {
+        const fridgeItems = document.getElementById("fridge_items");
+        fridgeItems.innerHTML = "";
+        for (const item of items) {
+          drawFridgeItem(item.id, item.name, item.quantity);
+        }
+      }
+
+      function drawFridgeItem(itemId, itemName, count) {
+        const itemCardId = `fridge_item_${itemId}`;
+        const fridgeItems = document.getElementById("fridge_items");
+        let itemCard = document.getElementById(itemCardId);
+        if (!itemCard) {
+          itemCard = document.createElement("div");
+          itemCard.className = "fridge-item-card";
+          itemCard.id = itemCardId;
+
+          const itemNameElement = document.createElement("span");
+          itemNameElement.className = "item-name";
+          const itemQuantityElement = document.createElement("span");
+          itemQuantityElement.className = "item-quantity";
+          const removeItemButton = document.createElement("button");
+          removeItemButton.className = "remove-item";
+          fridgeItems.appendChild(itemCard);
+          itemCard.appendChild(itemNameElement);
+          itemCard.appendChild(itemQuantityElement);
+          itemCard.appendChild(removeItemButton);
+        }
+        itemCard.querySelector(".item-name").innerText = itemName;
+        itemCard.querySelector(".item-quantity").innerText = count.toString();
+        itemCard.querySelector(".remove-item").innerText = "x";
+        itemCard.querySelector(".remove-item").onclick = () => {
+          signalingSocket.send(
+            JSON.stringify({
+              type: "fridge",
+              data: `remove_${itemId}`,
+            })
+          );
+        };
+      }
+
+      function drawRecipeRecommendationList(recommendations) {
+        const recipeRecommendation =
+          document.getElementById("recipe_recommend");
+        recipeRecommendation.innerHTML = "";
+        for (const recommendation of recommendations) {
+          drawRecipeRecommendation(recommendation);
+        }
+      }
+
+      function drawRecipeRecommendation(recommendation) {
+        const recipeName = recommendation.name;
+        const recipeRecommendation =
+          document.getElementById("recipe_recommend");
+        const recipeCard = document.createElement("div");
+        recipeCard.className = "recipe-recommendation-card";
+        recipeCard.id = `recipe_recommendation_${recipeName}`;
+        recipeRecommendation.appendChild(recipeCard);
+        const recipeNameElement = document.createElement("span");
+        recipeNameElement.className = "recipe-recommendation-name";
+        recipeNameElement.innerText = `${recommendation.name} - 소요 시간 ${recommendation.time}분`;
+        recipeCard.appendChild(recipeNameElement);
+      }
+
+      function selectRecipe(recipeId) {
+        signalingSocket.send(
+          JSON.stringify({
+            type: "select_recipe",
+            data: recipeId,
+          })
+        );
+      }
+    </script>
+  </body>
+</html>
