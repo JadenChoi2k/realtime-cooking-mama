@@ -303,8 +303,8 @@ class GPTRealtimeAssistant:
     
     async def update_session(self, session: Dict[str, Any]):
         """
-        세션 Update
-        Go의 UpdateSession과 동일
+        Update session
+        Same as Go's UpdateSession
         """
         message = {
             "type": "session.update",
@@ -314,10 +314,10 @@ class GPTRealtimeAssistant:
     
     async def send_message(self, message: str):
         """
-        텍스트 메시지 전송
-        Go의 SendMessage와 동일
+        Send text message
+        Same as Go's SendMessage
         """
-        # 응답 중이면 대기
+        # Wait if responding
         while self.is_responding:
             await asyncio.sleep(0.1)
         
@@ -344,8 +344,8 @@ class GPTRealtimeAssistant:
     
     async def send_audio(self, audio: bytes):
         """
-        오디오 전송
-        Go의 SendAudio와 동일
+        Send audio
+        Same as Go's SendAudio
         """
         if self.status != RealtimeAssistantStatus.CONNECTED:
             return
@@ -359,8 +359,8 @@ class GPTRealtimeAssistant:
     
     async def call_function(self, call_id: str, name: str, arguments: str):
         """
-        함수 호출 (서버 측에서 클라이언트에게)
-        Go의 CallFunction과 동일
+        Function call (server to client)
+        Same as Go's CallFunction
         """
         if self.is_responding:
             print("assistant is responding, skipping function call")
@@ -380,8 +380,8 @@ class GPTRealtimeAssistant:
     
     async def _handle_function_call(self, call_id: str, name: str, arguments: str):
         """
-        함수 호출 핸들링
-        Go의 handleFunctionCall과 동일
+        Handle function call
+        Same as Go's handleFunctionCall
         """
         print(f"Function call received: {call_id}, {name}, {arguments}")
         
@@ -419,8 +419,8 @@ class GPTRealtimeAssistant:
     
     async def _create_response(self):
         """
-        응답 Create 요청
-        Go의 createResponse와 동일
+        Create response request
+        Same as Go's createResponse
         """
         message_data = {
             "type": "response.create"
@@ -429,8 +429,8 @@ class GPTRealtimeAssistant:
     
     def _send_event(self, event_type: str, event: str, data: str):
         """
-        이벤트 전송 (큐에 Add)
-        Go의 sendEvent와 동일
+        Send event (add to queue)
+        Same as Go's sendEvent
         """
         realtime_event = RealtimeEvent(
             type=event_type,
@@ -441,31 +441,31 @@ class GPTRealtimeAssistant:
     
     async def _send_audio_to_channel(self, audio: bytes):
         """
-        오디오를 채널로 전송
-        Go의 sendAudioToChannel과 동일
+        Send audio to channel
+        Same as Go's sendAudioToChannel
         """
         if not self.audio_closing:
             await self.audio_channel.put(audio)
     
     async def get_audio_response_channel(self) -> asyncio.Queue:
-        """오디오 응답 채널 Returns"""
+        """Return audio response channel"""
         return self.audio_channel
     
     async def get_event_channel(self) -> asyncio.Queue:
-        """이벤트 채널 Returns"""
+        """Return event channel"""
         return self.event_channel
     
     def is_alive(self) -> bool:
         """
-        연결 상태 확인
-        Go의 IsAlive와 동일
+        Check connection status
+        Same as Go's IsAlive
         """
         return self.status not in [RealtimeAssistantStatus.DISCONNECTED, RealtimeAssistantStatus.ERROR]
     
     async def close(self):
         """
-        연결 Cleanup
-        Go의 Close와 동일
+        Cleanup connection
+        Same as Go's Close
         """
         self.status = RealtimeAssistantStatus.DISCONNECTED
         if self.ws:

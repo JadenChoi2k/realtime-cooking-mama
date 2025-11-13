@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 class FridgeItem(BaseModel):
     """
-    냉장고 아이템
+    Fridge item
     Equivalent to Go's FridgeItem struct
     """
     id: str
@@ -19,14 +19,14 @@ class FridgeItem(BaseModel):
 
 class Fridge:
     """
-    Fridge Management 클래스
-    Equivalent to Go's Fridge struct한 동작
+    Fridge Management class
+    Equivalent to Go's Fridge struct behavior
     """
     
     def __init__(self, recipe_source):
         """
         Args:
-            recipe_source: RecipeSource 인스턴스
+            recipe_source: RecipeSource instance
         """
         self._items: Dict[str, FridgeItem] = {}
         self._lock = asyncio.Lock()
@@ -34,16 +34,16 @@ class Fridge:
     
     async def looked(self, item_ids: List[str]) -> Tuple[List[FridgeItem], bool]:
         """
-        냉장고를 보고 아이템 Update
-        Complete port of Go's Looked 함수
+        Look at fridge and update items
+        Complete port of Go's Looked function
         
         Args:
-            item_ids: 감지된 아이템 ID list
+            item_ids: Detected item ID list
         
         Returns:
-            (아이템 list, 변경 여부)
+            (Item list, changed flag)
         """
-        # 주어진 아이템의 수량 카운트
+        # Count quantity of given items
         given_item_quantity_map: Dict[str, int] = {}
         for item_id in item_ids:
             given_item_quantity_map[item_id] = given_item_quantity_map.get(item_id, 0) + 1
@@ -55,7 +55,7 @@ class Fridge:
                 current_item = self._items.get(item_id)
                 
                 if current_item is None:
-                    # 새 아이템
+                    # New item
                     changed = True
                     name = item_id
                     ingredient = self.recipe_source.get_ingredient_by_id(item_id)
@@ -64,7 +64,7 @@ class Fridge:
                     self._items[item_id] = FridgeItem(id=item_id, name=name, quantity=quantity)
                 
                 elif current_item.quantity < quantity:
-                    # 수량 증가
+                    # Quantity increased
                     changed = True
                     name = item_id
                     ingredient = self.recipe_source.get_ingredient_by_id(item_id)
@@ -72,18 +72,18 @@ class Fridge:
                         name = ingredient.name
                     self._items[item_id] = FridgeItem(id=item_id, name=name, quantity=quantity)
             
-            # 아이템 list Returns
+            # Return item list
             items = list(self._items.values())
         
         return items, changed
     
     async def get_items(self) -> List[FridgeItem]:
         """
-        현재 냉장고 아이템 Get/Retrieve
+        Get current fridge items
         Same as Go's GetItems function
         
         Returns:
-            아이템 list
+            Item list
         """
         async with self._lock:
             items = list(self._items.values())
@@ -91,11 +91,11 @@ class Fridge:
     
     async def remove(self, item_id: str):
         """
-        아이템 Remove
+        Remove item
         Same as Go's Remove function
         
         Args:
-            item_id: Remove할 아이템 ID
+            item_id: Item ID to remove
         """
         async with self._lock:
             if item_id in self._items:
@@ -103,9 +103,8 @@ class Fridge:
     
     async def clear(self):
         """
-        냉장고 비우기
+        Clear fridge
         Same as Go's Clear function
         """
         async with self._lock:
             self._items = {}
-

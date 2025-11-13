@@ -9,19 +9,19 @@ from models.recipe import Ingredient, Recipe, RecipeIngredient, RecipeStep
 
 class RecipeSource:
     """
-    레시피 소스 (JSON 데이터 Manage)
+    Recipe source (manages JSON data)
     Equivalent to Go's RecipeSource struct
     """
     
     def __init__(self, json_data: dict):
         """
         Args:
-            json_data: recipe.json 데이터
+            json_data: recipe.json data
         """
         self.ingredients: Dict[str, Ingredient] = {}
         self.recipes: List[Recipe] = []
         
-        # 식재료 파싱
+        # Parse ingredients
         food_ingredients = json_data.get("food_ingredients", [])
         for item in food_ingredients:
             ingredient = Ingredient(
@@ -31,10 +31,10 @@ class RecipeSource:
             )
             self.ingredients[ingredient.id] = ingredient
         
-        # 레시피 파싱
+        # Parse recipes
         recipes = json_data.get("recipes", [])
         for item in recipes:
-            # 식재료 파싱
+            # Parse ingredients
             recipe_ingredients = []
             for ing in item.get("ingredients", []):
                 recipe_ingredient = RecipeIngredient(
@@ -45,7 +45,7 @@ class RecipeSource:
                 )
                 recipe_ingredients.append(recipe_ingredient)
             
-            # 단계 파싱
+            # Parse steps
             steps = []
             for step in item.get("steps", []):
                 recipe_step = RecipeStep(
@@ -55,7 +55,7 @@ class RecipeSource:
                 )
                 steps.append(recipe_step)
             
-            # 레시피 Create
+            # Create recipe
             recipe = Recipe(
                 id=item["id"],
                 time=item["time"],
@@ -68,27 +68,27 @@ class RecipeSource:
     
     def get_ingredient_by_id(self, id: str) -> Optional[Ingredient]:
         """
-        식재료 ID로 Get/Retrieve
-        Go의 GetIngredientByID와 동일
+        Get ingredient by ID
+        Same as Go's GetIngredientByID
         
         Args:
-            id: 식재료 ID
+            id: Ingredient ID
         
         Returns:
-            Ingredient 또는 None
+            Ingredient or None
         """
         return self.ingredients.get(id)
     
     def get_recipes_by_ids(self, ids: List[int]) -> List[Recipe]:
         """
-        레시피 ID list로 여러 레시피 Get/Retrieve
-        Go의 GetRecipesByIDs와 동일
+        Get multiple recipes by ID list
+        Same as Go's GetRecipesByIDs
         
         Args:
-            ids: 레시피 ID list
+            ids: Recipe ID list
         
         Returns:
-            Recipe list
+            List of recipes
         """
         recipes = []
         for recipe_id in ids:
@@ -100,14 +100,14 @@ class RecipeSource:
     
     def get_recipe_by_id(self, id: int) -> Optional[Recipe]:
         """
-        레시피 ID로 Get/Retrieve
-        Go의 GetRecipeByID와 동일
+        Get recipe by ID
+        Same as Go's GetRecipeByID
         
         Args:
-            id: 레시피 ID
+            id: Recipe ID
         
         Returns:
-            Recipe 또는 None
+            Recipe or None
         """
         for recipe in self.recipes:
             if recipe.id == id:
@@ -117,14 +117,14 @@ class RecipeSource:
 
 class RecipeHelper:
     """
-    레시피 진행 도우미
+    Recipe progress helper
     Equivalent to Go's RecipeHelper struct
     """
     
     def __init__(self, recipe: Recipe):
         """
         Args:
-            recipe: Recipe 인스턴스
+            recipe: Recipe instance
         """
         self.current_step = 0
         self.recipe = recipe
@@ -134,16 +134,16 @@ class RecipeHelper:
     
     def get_recipe(self) -> Recipe:
         """
-        레시피 Returns
-        Go의 GetRecipe와 동일
+        Return recipe
+        Same as Go's GetRecipe
         """
         return self.recipe
     
     def get_current_step(self) -> RecipeStep:
         """
-        현재 단계 Returns
-        Go의 GetCurrentStep과 동일
-        currentStep <= 0일 때 "요리 준비" 단계 Returns
+        Return current step
+        Same as Go's GetCurrentStep
+        Return "Preparation" step when currentStep <= 0
         
         Returns:
             RecipeStep
@@ -151,15 +151,15 @@ class RecipeHelper:
         if self.current_step <= 0:
             return RecipeStep(
                 order=1,
-                title="요리 준비",
-                description="요리를 준비합니다. Start할 준비가 되면 알려주세요."
+                title="Preparation",
+                description="Prepare for cooking. Let me know when you're ready to start."
             )
         return self.recipe.steps[self.current_step - 1]
     
     def go_previous_step(self) -> RecipeStep:
         """
-        previous 단계로 이동
-        Go의 GoPreviousStep과 동일
+        Move to previous step
+        Same as Go's GoPreviousStep
         
         Returns:
             RecipeStep
@@ -173,8 +173,8 @@ class RecipeHelper:
     
     def go_next_step(self) -> Tuple[RecipeStep, bool]:
         """
-        next 단계로 이동
-        Go의 GoNextStep과 동일
+        Move to next step
+        Same as Go's GoNextStep
         
         Returns:
             (RecipeStep, is_last)
@@ -187,11 +187,11 @@ class RecipeHelper:
     
     def mark_done(self) -> bool:
         """
-        요리 complete 표시
+        Mark cooking as complete
         Same as Go's Done function
         
         Returns:
-            complete 여부 (마지막 단계가 아니면 False)
+            Completion status (False if not last step)
         """
         if self.current_step < len(self.recipe.steps):
             return False
@@ -202,8 +202,8 @@ class RecipeHelper:
     
     def get_elapsed_time(self) -> timedelta:
         """
-        경과 시간 Returns
-        Go의 GetElapsedTime과 동일
+        Return elapsed time
+        Same as Go's GetElapsedTime
         
         Returns:
             timedelta
@@ -214,19 +214,19 @@ class RecipeHelper:
     
     def get_elapsed_time_string(self) -> str:
         """
-        경과 시간 string Returns
-        Go의 GetElapsedTimeString과 동일
+        Return elapsed time string
+        Same as Go's GetElapsedTimeString
         
         Returns:
-            경과 시간 string
+            Elapsed time string
         """
         if self.end_time is None:
-            return "아직 요리 중입니다."
+            return "Still cooking."
         
         duration = self.get_elapsed_time()
         hours = int(duration.total_seconds() // 3600)
         minutes = int((duration.total_seconds() % 3600) // 60)
         seconds = int(duration.total_seconds() % 60)
         
-        return f"경과 시간: {hours}시간 {minutes}분 {seconds}초"
+        return f"Elapsed time: {hours}h {minutes}m {seconds}s"
 
