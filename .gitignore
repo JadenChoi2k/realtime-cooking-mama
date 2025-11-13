@@ -55,3 +55,6 @@ Thumbs.db
 # Logs
 *.log
 
+
+# Resources (copy from yori-server)
+resources/
