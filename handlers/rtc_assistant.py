@@ -19,6 +19,7 @@ from core.recipe import RecipeSource, RecipeHelper
 from core.db_handler import YoriDB
 from core.object_detector import YOLODetector, ObjectDetection
 from core.video_detector import VideoObjectDetector
+from core.gpt_vision_detector import GPTVisionDetector
 from core.realtime_assistant import GPTRealtimeAssistant
 from core.openai_assistant import recommend_recipe
 from models.events import YoriWebEvent
@@ -558,7 +559,16 @@ class RTCYoriAssistant:
             confidence=0.5
         )
         
-        vod = VideoObjectDetector(detector)
+        # GPT Vision detector Create (as fallback)
+        gpt_detector = None
+        if self.api_key:
+            try:
+                gpt_detector = GPTVisionDetector(self.api_key)
+                print("GPT Vision fallback detector enabled")
+            except Exception as e:
+                print(f"Failed to create GPT Vision detector: {e}")
+        
+        vod = VideoObjectDetector(detector, fallback_detector=gpt_detector)
         await vod.start()
         print("Video object detector started")
         

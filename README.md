@@ -105,6 +105,8 @@ pytest
 
 1. **WebRTC-based Real-time Video/Audio Communication**
 2. **YOLO Object Detection** (Ingredient recognition)
+   - **GPT Vision Fallback**: When YOLO returns no results, automatically falls back to GPT-4 Vision API
+   - **Smart Throttling**: 5-second interval between GPT Vision calls to optimize API costs
 3. **OpenAI Realtime API** (Voice conversation)
 4. **Fridge Management**
 5. **Recipe Recommendation and Step-by-step Guidance**
@@ -123,12 +125,28 @@ This project is designed with a **client-side API key input approach**:
 
 ### Differences from Original Go Server
 
-| Feature            | Go Server                    | Python Server (This Project) |
-| ------------------ | ---------------------------- | ---------------------------- |
-| Authentication     | Server-side PASSWORD env var | Client-side API key input    |
-| Object Detection   | GoCV or external server      | Ultralytics YOLO (built-in)  |
-| Database           | MongoDB                      | SQLite                       |
-| API Key Management | Server environment variable  | Client input                 |
+| Feature            | Go Server                    | Python Server (This Project)        |
+| ------------------ | ---------------------------- | ----------------------------------- |
+| Authentication     | Server-side PASSWORD env var | Client-side API key input           |
+| Object Detection   | GoCV or external server      | Ultralytics YOLO + GPT Vision       |
+| Database           | MongoDB                      | SQLite                              |
+| API Key Management | Server environment variable  | Client input                        |
+| Fallback Detection | None                         | GPT-4 Vision API (5-sec throttling) |
+
+### GPT Vision Fallback
+
+The system implements an intelligent fallback mechanism for object detection:
+
+1. **Primary Detection**: YOLO model (`yori_detector.onnx`) attempts to detect ingredients
+2. **Fallback Trigger**: If YOLO returns empty results, GPT-4 Vision API is called
+3. **Throttling**: Minimum 5-second interval between GPT Vision calls to control costs
+4. **Broader Detection**: GPT Vision can detect ingredients not in the YOLO training set
+5. **Cost Optimization**: 
+   - Images are resized to 512x512 before sending
+   - Low detail mode is used for API calls
+   - Estimated cost: ~$0.01 per image, max 12 calls/minute with throttling
+
+**Use Case**: When users show ingredients that YOLO wasn't trained on, or in poor lighting conditions, GPT Vision provides a reliable backup detection method.
 
 ### WebSocket Protocol
 

@@ -3,7 +3,8 @@ Video Object Detection
 Complete port of Go's ybcore/video_object_detector.go
 """
 import asyncio
-from typing import List
+import time
+from typing import List, Optional
 from PIL import Image
 from core.object_detector import YOLODetector, ObjectDetection
 
@@ -12,14 +13,20 @@ class VideoObjectDetector:
     """
     Object detection from video stream
     Equivalent to Go's VideoObjectDetector struct
+    Now with GPT Vision fallback support
     """
     
-    def __init__(self, detector: YOLODetector):
+    def __init__(self, detector: YOLODetector, fallback_detector=None, gpt_throttle_seconds: float = 5.0):
         """
         Args:
             detector: YOLODetector instance
+            fallback_detector: Optional GPTVisionDetector for fallback
+            gpt_throttle_seconds: Minimum seconds between GPT Vision calls (default 5.0)
         """
         self.detector = detector
+        self.fallback_detector = fallback_detector
+        self.gpt_throttle_seconds = gpt_throttle_seconds
+        self.last_gpt_call_time = 0.0
         self.image_queue = asyncio.Queue()
         self.detection_queue = asyncio.Queue()
         self.running = False
@@ -66,11 +73,25 @@ class VideoObjectDetector:
         """
         Run detection and send results
         Same as logic inside Go's goroutine
+        Now with GPT Vision fallback when YOLO returns empty
         """
         try:
             # YOLO detection (run sync function in executor)
             loop = asyncio.get_event_loop()
             detections = await loop.run_in_executor(None, self.detector.detect, image)
+            
+            # If empty and fallback available, check throttle
+            if len(detections) == 0 and self.fallback_detector is not None:
+                current_time = time.time()
+                time_since_last_call = current_time - self.last_gpt_call_time
+                
+                if time_since_last_call >= self.gpt_throttle_seconds:
+                    print(f"YOLO returned empty, calling GPT Vision fallback (last call: {time_since_last_call:.1f}s ago)")
+                    # Call GPT Vision fallback (run async method)
+                    detections = await loop.run_in_executor(None, self.fallback_detector.detect, image)
+                    self.last_gpt_call_time = current_time
+                else:
+                    print(f"YOLO returned empty, but GPT throttled (last call: {time_since_last_call:.1f}s ago)")
             
             # Send results
             await self.detection_queue.put(detections)
