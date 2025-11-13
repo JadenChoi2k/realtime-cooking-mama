@@ -4,6 +4,7 @@ Go의 utils/audio_utils.go 완벽 복제
 """
 import base64
 from typing import List
+import opuslib
 
 
 def bytes_to_int16_list(b: bytes) -> List[int]:
@@ -157,4 +158,52 @@ def base64_encode_pcm16(pcm: bytes) -> str:
         result += base64.b64encode(chunk).decode('ascii')
     
     return result
+
+
+class OpusHandler:
+    """
+    Opus 코덱 핸들러
+    Go의 OpusHandler 구조체와 동일
+    """
+    
+    def __init__(self, sample_rate: int, channels: int):
+        """
+        Args:
+            sample_rate: 샘플레이트 (예: 48000)
+            channels: 채널 수 (1: 모노, 2: 스테레오)
+        """
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.decoder = opuslib.Decoder(sample_rate, channels)
+        self.encoder = opuslib.Encoder(sample_rate, channels, opuslib.APPLICATION_AUDIO)
+    
+    def decode(self, opus_data: bytes) -> bytes:
+        """
+        Opus 데이터를 PCM16으로 디코딩
+        
+        Args:
+            opus_data: Opus 인코딩된 데이터
+        
+        Returns:
+            PCM16 바이트 데이터
+        """
+        # 20ms 프레임 크기 계산
+        frame_size = (self.sample_rate // 1000) * 20
+        pcm_data = self.decoder.decode(opus_data, frame_size)
+        return bytes(pcm_data)
+    
+    def encode(self, pcm_data: bytes) -> bytes:
+        """
+        PCM16 데이터를 Opus로 인코딩
+        
+        Args:
+            pcm_data: PCM16 바이트 데이터
+        
+        Returns:
+            Opus 인코딩된 데이터
+        """
+        # 20ms 프레임 크기 계산
+        frame_size = (self.sample_rate // 1000) * 20
+        opus_data = self.encoder.encode(pcm_data, frame_size)
+        return bytes(opus_data)
 
