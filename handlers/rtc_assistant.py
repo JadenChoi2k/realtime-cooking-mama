@@ -9,6 +9,7 @@ import time
 from typing import Optional, List, Dict, Any
 from fastapi import WebSocket
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, MediaStreamTrack
+from aiortc.sdp import candidate_from_sdp
 from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
 import av
 import numpy as np
@@ -31,7 +32,8 @@ from utils.audio_utils import (
     int16_list_to_bytes,
     resample_pcm,
     pcm16_with_single_channel,
-    pcm16_with_multiple_channels
+    pcm16_with_multiple_channels,
+    convert_pcm_48k_stereo_to_24k_mono
 )
 
 
@@ -518,7 +520,6 @@ class RTCYoriAssistant:
                 print("Assistant not initialized after 10 seconds, skipping RTP track")
                 return
         
-        opus_handler = OpusHandler(48000, 2)
         audio_buffer = bytearray()
         chunk_size = 0x8000
         
@@ -526,11 +527,16 @@ class RTCYoriAssistant:
             try:
                 frame = await track.recv()
                 
-                # AudioFrame → bytes
-                audio_bytes = frame.to_ndarray().tobytes()
+                # aiortc는 자동으로 Opus를 PCM으로 디코딩함
+                # AudioFrame → numpy array (48kHz, 2ch)
+                audio_array = frame.to_ndarray()
                 
-                # Opus → PCM16 (48kHz 2ch → 24kHz 1ch)
-                pcm16 = opus_handler.convert_opus_to_pcm16_2(audio_bytes)
+                # numpy array → bytes (int16)
+                # aiortc AudioFrame format은 's16' (signed 16-bit)
+                audio_bytes = audio_array.tobytes()
+                
+                # PCM 변환: 48kHz 2ch → 24kHz 1ch
+                pcm16 = convert_pcm_48k_stereo_to_24k_mono(audio_bytes)
                 
                 audio_buffer.extend(pcm16)
                 
@@ -663,12 +669,13 @@ class RTCYoriAssistant:
                 
                 # ICE candidate Handle
                 if "candidate" in msg:
-                    candidate = RTCIceCandidate(
-                        candidate=msg["candidate"],
-                        sdpMid=msg.get("sdpMid"),
-                        sdpMLineIndex=msg.get("sdpMLineIndex")
-                    )
-                    await self.pc.addIceCandidate(candidate)
+                    try:
+                        candidate = candidate_from_sdp(msg["candidate"])
+                        candidate.sdpMid = msg.get("sdpMid")
+                        candidate.sdpMLineIndex = msg.get("sdpMLineIndex")
+                        await self.pc.addIceCandidate(candidate)
+                    except Exception as e:
+                        print(f"Failed to add ICE candidate: {e}")
                     continue
                 
                 msg_type = msg.get("type")

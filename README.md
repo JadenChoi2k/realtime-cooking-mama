@@ -55,11 +55,17 @@ API keys are entered directly from the client side.
 # Start server
 ./scripts/start-server.sh
 
-# Check server status
-./scripts/validate-server.sh
-
 # Stop server
 ./scripts/stop-server.sh
+
+# Restart server
+./scripts/restart-server.sh
+
+# View server logs (real-time)
+./scripts/log-server.sh
+
+# Check server status
+./scripts/validate-server.sh
 ```
 
 ### Method 2: Direct Execution
@@ -190,6 +196,8 @@ The `scripts/` directory contains helpful shell scripts for server management:
 
 - `start-server.sh`: Starts the server in the background and saves the PID
 - `stop-server.sh`: Gracefully stops the running server
+- `restart-server.sh`: Restarts the server (stop + start)
+- `log-server.sh`: Shows server logs in real-time (tail -f)
 - `validate-server.sh`: Checks server status, memory usage, and resource files
 
 ## WebRTC Flow

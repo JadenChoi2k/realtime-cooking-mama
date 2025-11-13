@@ -206,4 +206,57 @@ class OpusHandler:
         frame_size = (self.sample_rate // 1000) * 20
         opus_data = self.encoder.encode(pcm_data, frame_size)
         return bytes(opus_data)
+    
+    def convert_opus_to_pcm16_2(self, opus_data: bytes) -> bytes:
+        """
+        Opus 데이터를 PCM16으로 변환하고 resampling + channel conversion 수행
+        48kHz 2ch -> 24kHz 1ch
+        
+        Args:
+            opus_data: Opus Encode된 데이터
+        
+        Returns:
+            변환된 PCM16 바이트 데이터 (24kHz, mono)
+        """
+        # 1. Opus decode (48kHz 2ch)
+        pcm_bytes = self.decode(opus_data)
+        
+        # 2. bytes -> int16 list
+        pcm_list = bytes_to_int16_list(pcm_bytes)
+        
+        # 3. 48kHz -> 24kHz resample (BEFORE channel conversion)
+        if self.sample_rate == 48000:
+            pcm_list = resample_pcm(pcm_list, 48000, 24000)
+        
+        # 4. 2ch -> 1ch (extract left channel AFTER resampling)
+        if self.channels == 2:
+            pcm_list = pcm16_with_single_channel(pcm_list)
+        
+        # 5. int16 list -> bytes
+        return int16_list_to_bytes(pcm_list)
+
+
+def convert_pcm_48k_stereo_to_24k_mono(pcm_bytes: bytes) -> bytes:
+    """
+    이미 디코딩된 PCM 데이터를 변환 (48kHz 2ch -> 24kHz 1ch)
+    aiortc가 자동으로 Opus를 디코딩하므로 이 함수를 사용
+    Go의 ConvertOpusToPCM16_2와 동일하지만 Opus 디코딩 단계 제외
+    
+    Args:
+        pcm_bytes: PCM16 바이트 데이터 (48kHz, 2ch)
+    
+    Returns:
+        변환된 PCM16 바이트 데이터 (24kHz, 1ch)
+    """
+    # 1. bytes -> int16 list
+    pcm_list = bytes_to_int16_list(pcm_bytes)
+    
+    # 2. 48kHz -> 24kHz resample (BEFORE channel conversion)
+    pcm_list = resample_pcm(pcm_list, 48000, 24000)
+    
+    # 3. 2ch -> 1ch (extract left channel AFTER resampling)
+    pcm_list = pcm16_with_single_channel(pcm_list)
+    
+    # 4. int16 list -> bytes
+    return int16_list_to_bytes(pcm_list)
 

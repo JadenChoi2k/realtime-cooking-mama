@@ -62,7 +62,8 @@ class GPTRealtimeAssistant:
             "OpenAI-Beta": "realtime=v1"
         }
         
-        self.ws = await websockets.connect(url, extra_headers=headers)
+        # Use additional_headers instead of extra_headers for uvloop compatibility
+        self.ws = await websockets.connect(url, additional_headers=headers)
         
         # Receive first message (session.created)
         _ = await self.ws.recv()
