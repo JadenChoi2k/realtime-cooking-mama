@@ -9,9 +9,9 @@ from core.fridge import FridgeItem
 
 
 # Go의 recommendPrompt를 완벽히 복제
-RECOMMEND_PROMPT = """당신은 사용자 맥락과, 냉장고 재고 목록을 통해서 사용자에게 적합한 레시피 최소 0개, 최대 5개를 추천해줘야 합니다. 레시피 목록 정보가 주어집니다. 그 중에서 선택하도록 합니다. 입력으로는 사용자의 현재 냉장고 재고 상태가, 그리고 사용자의 맥락이 주어집니다. 그리고 이를 통해 추천 레시피 목록을 추천해줍니다. 레시피 목록은 다음과 같습니다. 
+RECOMMEND_PROMPT = """당신은 사용자 맥락과, 냉장고 재고 목록을 통해서 사용자에게 적합한 레시피 최소 0개, 최대 5개를 추천해줘야 합니다. 레시피 목록 info가 주어집니다. 그 중에서 선택하도록 합니다. 입력으로는 사용자의 현재 냉장고 재고 상태가, 그리고 사용자의 맥락이 주어집니다. 그리고 이를 통해 추천 레시피 목록을 추천해줍니다. 레시피 목록은 next과 같습니다. 
 
-**레시피 목록 시작**
+**레시피 목록 Start**
 {
   "food_ingredients": [
     {
@@ -408,14 +408,14 @@ RECOMMEND_PROMPT = """당신은 사용자 맥락과, 냉장고 재고 목록을 
 **레시피 목록 끝**
 
 **입력 형식**
-1. 냉장고 재고 상태. 데이터 리스트가 주어집니다.
-2. 맥락: 사용자의 현재 맥락 정보가 텍스트로 주어집니다.
+1. 냉장고 재고 상태. 데이터 list가 주어집니다.
+2. 맥락: 사용자의 현재 맥락 info가 텍스트로 주어집니다.
 
 **유의 사항**
 1. 사용자는 현재 냉장고를 둘러보는 상황입니다. 따라서 is_in_fridge가 false인 식재료 경우, 사용자가 해당 재료를 이미 가지고 있다고 판단합니다.
 2. required 값이 false인 식재료는 냉장고 재고 상황에서 고려하지 않습니다.
 3. 현재 냉장고 재고 상태에 적합한 레시피를 추천합니다.
-4. 추천 레시피는 레시피 아이디 목록으로 반환합니다. 주어진 레시피 내에서만 고르십시오.
+4. 추천 레시피는 레시피 아이디 목록으로 Returns합니다. 주어진 레시피 내에서만 고르십시오.
 5. 게맛살이 있는 경우 게살 샌드위치를 포함하여 추천합니다.
 
 이제부터 당신은 냉장고 재료를 통해 사용자에게 추천 레시피를 전달할 준비가 되었습니다."""
@@ -451,7 +451,7 @@ class OpenAIAssistant:
             response_format: JSON 스키마
         
         Returns:
-            JSON 문자열
+            JSON string
         """
         response = self.client.chat.completions.create(
             model=self.model,
@@ -471,23 +471,23 @@ class OpenAIAssistant:
 async def recommend_recipe(openai_key: str, fridge_items: List[FridgeItem], context: str) -> List[int]:
     """
     레시피 추천
-    Go의 RecommendRecipe 함수 완벽 복제
+    Complete port of Go's RecommendRecipe 함수
     
     Args:
         openai_key: OpenAI API 키
-        fridge_items: 냉장고 아이템 리스트
+        fridge_items: 냉장고 아이템 list
         context: 사용자 맥락
     
     Returns:
-        추천 레시피 ID 리스트
+        추천 레시피 ID list
     """
     assistant = OpenAIAssistant(openai_key, "gpt-4o")
     assistant.set_system_prompt(RECOMMEND_PROMPT)
     
-    # 냉장고 아이템을 JSON으로 변환
+    # 냉장고 아이템을 JSON으로 Convert
     fridge_json = json.dumps([item.model_dump() for item in fridge_items])
     
-    # 메시지 생성
+    # 메시지 Create
     message = f"1. 냉장고: {fridge_json}\n2. 맥락: {context}"
     
     # Structured Output 스키마 (Go와 동일)

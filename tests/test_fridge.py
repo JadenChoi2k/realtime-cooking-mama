@@ -1,6 +1,6 @@
 """
 냉장고 로직 테스트
-Go 서버의 ybcore/fridge.go 동작을 검증
+Go 서버의 ybcore/fridge.go 동작을 Validate
 """
 import pytest
 from core.fridge import Fridge, FridgeItem
@@ -23,7 +23,7 @@ def recipe_source():
 
 @pytest.mark.asyncio
 async def test_fridge_init(recipe_source):
-    """냉장고 초기화 테스트"""
+    """냉장고 Initialize 테스트"""
     fridge = Fridge(recipe_source)
     items = await fridge.get_items()
     assert len(items) == 0
@@ -31,7 +31,7 @@ async def test_fridge_init(recipe_source):
 
 @pytest.mark.asyncio
 async def test_fridge_looked_new_item(recipe_source):
-    """새 아이템 추가 시 changed=True"""
+    """새 아이템 Add 시 changed=True"""
     fridge = Fridge(recipe_source)
     
     items, changed = await fridge.looked(["brown-egg"])
@@ -76,7 +76,7 @@ async def test_fridge_looked_quantity_same(recipe_source):
 
 @pytest.mark.asyncio
 async def test_fridge_looked_multiple_items(recipe_source):
-    """여러 아이템 추가 테스트"""
+    """여러 아이템 Add 테스트"""
     fridge = Fridge(recipe_source)
     
     items, changed = await fridge.looked(["brown-egg", "crab-meat", "onion", "brown-egg"])
@@ -96,7 +96,7 @@ async def test_fridge_looked_multiple_items(recipe_source):
 
 @pytest.mark.asyncio
 async def test_fridge_looked_unknown_ingredient(recipe_source):
-    """알 수 없는 식재료 처리 (ID를 이름으로 사용)"""
+    """알 수 없는 식재료 Handle (ID를 이름으로 사용)"""
     fridge = Fridge(recipe_source)
     
     items, changed = await fridge.looked(["unknown-item"])
@@ -109,7 +109,7 @@ async def test_fridge_looked_unknown_ingredient(recipe_source):
 
 @pytest.mark.asyncio
 async def test_fridge_remove(recipe_source):
-    """아이템 제거 테스트"""
+    """아이템 Remove 테스트"""
     fridge = Fridge(recipe_source)
     
     await fridge.looked(["brown-egg", "crab-meat"])
@@ -153,6 +153,6 @@ async def test_fridge_concurrency(recipe_source):
     )
     
     items = await fridge.get_items()
-    # 모든 아이템이 추가되어야 함
+    # 모든 아이템이 Add되어야 함
     assert len(items) >= 1  # 최소 1개 이상
 

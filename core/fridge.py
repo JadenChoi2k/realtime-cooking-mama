@@ -1,6 +1,6 @@
 """
-냉장고 관리
-Go의 ybcore/fridge.go 완벽 복제
+Fridge Management
+Complete port of Go's ybcore/fridge.go
 """
 import asyncio
 from typing import Dict, List, Tuple, Optional
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class FridgeItem(BaseModel):
     """
     냉장고 아이템
-    Go의 FridgeItem 구조체와 동일
+    Equivalent to Go's FridgeItem struct
     """
     id: str
     name: str
@@ -19,8 +19,8 @@ class FridgeItem(BaseModel):
 
 class Fridge:
     """
-    냉장고 관리 클래스
-    Go의 Fridge 구조체와 동일한 동작
+    Fridge Management 클래스
+    Equivalent to Go's Fridge struct한 동작
     """
     
     def __init__(self, recipe_source):
@@ -34,14 +34,14 @@ class Fridge:
     
     async def looked(self, item_ids: List[str]) -> Tuple[List[FridgeItem], bool]:
         """
-        냉장고를 보고 아이템 업데이트
-        Go의 Looked 함수 완벽 복제
+        냉장고를 보고 아이템 Update
+        Complete port of Go's Looked 함수
         
         Args:
-            item_ids: 감지된 아이템 ID 리스트
+            item_ids: 감지된 아이템 ID list
         
         Returns:
-            (아이템 리스트, 변경 여부)
+            (아이템 list, 변경 여부)
         """
         # 주어진 아이템의 수량 카운트
         given_item_quantity_map: Dict[str, int] = {}
@@ -72,18 +72,18 @@ class Fridge:
                         name = ingredient.name
                     self._items[item_id] = FridgeItem(id=item_id, name=name, quantity=quantity)
             
-            # 아이템 리스트 반환
+            # 아이템 list Returns
             items = list(self._items.values())
         
         return items, changed
     
     async def get_items(self) -> List[FridgeItem]:
         """
-        현재 냉장고 아이템 조회
-        Go의 GetItems 함수와 동일
+        현재 냉장고 아이템 Get/Retrieve
+        Same as Go's GetItems function
         
         Returns:
-            아이템 리스트
+            아이템 list
         """
         async with self._lock:
             items = list(self._items.values())
@@ -91,11 +91,11 @@ class Fridge:
     
     async def remove(self, item_id: str):
         """
-        아이템 제거
-        Go의 Remove 함수와 동일
+        아이템 Remove
+        Same as Go's Remove function
         
         Args:
-            item_id: 제거할 아이템 ID
+            item_id: Remove할 아이템 ID
         """
         async with self._lock:
             if item_id in self._items:
@@ -104,7 +104,7 @@ class Fridge:
     async def clear(self):
         """
         냉장고 비우기
-        Go의 Clear 함수와 동일
+        Same as Go's Clear function
         """
         async with self._lock:
             self._items = {}

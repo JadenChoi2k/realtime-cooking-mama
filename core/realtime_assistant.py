@@ -1,6 +1,6 @@
 """
 OpenAI Realtime API Assistant
-Go의 ybcore/realtime_assistant.go 완벽 복제
+Complete port of Go's ybcore/realtime_assistant.go
 """
 import asyncio
 import json
@@ -13,8 +13,8 @@ from utils.audio_utils import base64_encode_pcm16
 
 class RealtimeAssistantStatus(Enum):
     """
-    Realtime Assistant 상태
-    Go의 RealtimeAssistantStatus와 동일
+    Realtime Assistant status
+    Equivalent to Go's RealtimeAssistantStatus
     """
     READY = "ready"
     CONNECTED = "connected"
@@ -24,8 +24,8 @@ class RealtimeAssistantStatus(Enum):
 
 class RealtimeEvent(BaseModel):
     """
-    Realtime 이벤트
-    Go의 RealtimeEvent와 동일
+    Realtime event
+    Equivalent to Go's RealtimeEvent
     """
     type: str
     event: str
@@ -35,13 +35,13 @@ class RealtimeEvent(BaseModel):
 class GPTRealtimeAssistant:
     """
     GPT Realtime Assistant
-    Go의 GPTRealtimeAssistant 완벽 복제
+    Complete port of Go's GPTRealtimeAssistant
     """
     
     def __init__(self, api_key: str):
         """
         Args:
-            api_key: OpenAI API 키
+            api_key: OpenAI API key
         """
         self.api_key = api_key
         self.status = RealtimeAssistantStatus.READY
@@ -55,7 +55,7 @@ class GPTRealtimeAssistant:
         self._receive_task: Optional[asyncio.Task] = None
     
     async def connect(self):
-        """WebSocket 연결 및 초기화"""
+        """WebSocket connection and initialization"""
         url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -64,19 +64,19 @@ class GPTRealtimeAssistant:
         
         self.ws = await websockets.connect(url, extra_headers=headers)
         
-        # 첫 메시지 수신 (session.created)
+        # Receive first message (session.created)
         _ = await self.ws.recv()
         
-        # 수신 루프 시작
+        # Start receive loop
         self._receive_task = asyncio.create_task(self._receive_loop())
         
-        # 세션 초기화
+        # Initialize session
         await self._init_session()
     
     async def _receive_loop(self):
         """
-        메시지 수신 루프
-        Go의 realtime_assistant.go 91-245번 라인 로직 완벽 복제
+        Message receive loop
+        Complete port of Go's realtime_assistant.go lines 91-245 logic
         """
         try:
             while True:
@@ -84,7 +84,7 @@ class GPTRealtimeAssistant:
                 message = json.loads(msg)
                 message_type = message.get("type")
                 
-                # 이벤트 처리
+                # Handle event
                 asyncio.create_task(self._handle_message(message_type, message))
                 
         except websockets.exceptions.ConnectionClosed:
@@ -95,8 +95,8 @@ class GPTRealtimeAssistant:
     
     async def _handle_message(self, message_type: str, message: Dict[str, Any]):
         """
-        메시지 핸들링
-        Go의 switch문 로직 완벽 복제
+        Message handling
+        Complete port of Go's switch statement logic
         """
         if message_type == "error":
             self.is_responding = False
@@ -165,7 +165,7 @@ class GPTRealtimeAssistant:
             self.wait_for_sending_audio = False
             self.audio_closing = True
             
-            # 오디오 채널 재생성
+            # Recreate audio channel
             old_channel = self.audio_channel
             self.audio_channel = asyncio.Queue()
             self.audio_closing = False
@@ -201,21 +201,21 @@ class GPTRealtimeAssistant:
     
     async def _init_session(self):
         """
-        세션 초기화
-        Go의 sessionUpdate와 동일
+        Initialize session
+        Equivalent to Go's sessionUpdate
         """
-        instructions = """당신은 친근한 어시스턴트입니다. 당신의 이름은 '요리보'입니다. 인사와 함께 유저를 반겨줍니다.
-**다음 지시문을 필수적으로 지켜야 합니다.**
-- 짧고 간결하게 말하십시오. 절대로 길게 말하지 마십시오.
-- 같은 말을 반복하지 마십시오.
-- 당신은 사용자의 냉장고 식재료를 스캔하여, 사용자에게 요리 레시피를 제안하는 역할을 합니다. 레시피 제안은 함수 recommend_recipe()를 통해서 반환된 값으로만 하십시오.
-- 재료를 설명할 때에는, 주요 재료 3개 이하로만 말하십시오.
-- 추천된 레시피를 말할 때에는, 첫 번째 레시피만 말합니다.
-- 모든 결정을 내리기 전, 유저에게 먼저 의사를 물어보십시오.
-- 레시피를 선택할 때에는 유저에게 '[레시피 이름]으로 진행하시겠어요?' 같은 메시지를 반환하십시오. '예' 또는 '아니오'라고 대답할 때까지 계속 되물으십시오.
-- 유저가 아주 명확한 요청을 했을 때에만 주어진 함수를 호출하십시오.
-- 레시피 추천 결과가 없다고 해서 바로 추천드릴 레시피가 없다고 하지 마십시오. 대신, '방금 [추가된 재료. 예) 양파]가 인식되었어요! 냉장고를 더 둘러볼까요?' 같은 긍정적인 메시지를 반환하십시오.
-- 레시피 추천 결과가 반복적으로 없는 경우, 이때는 '추천 드릴 레시피가 없어요. 냉장고를 더 둘러볼까요?' 같은 메시지를 반환하십시오."""
+        instructions = """You are a friendly assistant. Your name is 'Yoribo'. Greet the user warmly.
+**You must follow the next instructions.**
+- Speak briefly and concisely. Never speak at length.
+- Do not repeat the same thing.
+- Your role is to scan the user's fridge ingredients and suggest cooking recipes. Recipe suggestions should only be made with values returned through the recommend_recipe() function.
+- When describing ingredients, mention only 3 or fewer main ingredients.
+- When mentioning recommended recipes, only mention the first recipe.
+- Before making any decision, ask the user's opinion first.
+- When selecting a recipe, return a message like 'Would you like to proceed with [Recipe Name]?' to the user. Keep asking until they answer 'yes' or 'no'.
+- Only call the given functions when the user makes a very clear request.
+- Do not immediately say there are no recipes to recommend just because there are no recipe recommendation results. Instead, return a positive message like 'I just detected [newly added ingredient, e.g. onion]! Shall we look around the fridge more?'
+- If there are repeatedly no recipe recommendation results, then return a message like 'I have no recipes to recommend. Shall we look around the fridge more?'"""
         
         session_update = {
             "modalities": ["text", "audio"],
@@ -236,7 +236,7 @@ class GPTRealtimeAssistant:
                 {
                     "type": "function",
                     "name": "get_fridge_items",
-                    "description": "유저로부터 냉장고 정보를 받아옵니다.",
+                    "description": "Get fridge information from user.",
                     "parameters": {
                         "type": "object",
                         "properties": {}
@@ -245,7 +245,7 @@ class GPTRealtimeAssistant:
                 {
                     "type": "function",
                     "name": "remove_fridge_item",
-                    "description": "유저로부터 요청(키워드: 삭제 또는 빼줘)을 받아 냉장고 안의 아이템을 제거합니다. 아이템의 아이디를 입력받습니다.",
+                    "description": "Receive request from user (keywords: delete or remove) to remove items in the fridge. Takes item ID as input.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -259,7 +259,7 @@ class GPTRealtimeAssistant:
                 {
                     "type": "function",
                     "name": "clear_fridge",
-                    "description": "유저로부터 요청(키워드: 비우기 또는 모두 삭제)을 받아 냉장고 안의 모든 아이템을 제거합니다. 웬만해서는 호출하지 않습니다.",
+                    "description": "Receive request from user (keywords: empty or delete all) to remove all items in the fridge. Rarely called.",
                     "parameters": {
                         "type": "object",
                         "properties": {}
@@ -268,7 +268,7 @@ class GPTRealtimeAssistant:
                 {
                     "type": "function",
                     "name": "recommend_recipe",
-                    "description": "사용자의 냉장고 상태를 기반으로 요리 레시피 추천을 요청합니다. 냉장고 재고가 변할 때 호출하거나, 사용자의 대화 맥락 속에서 적절하게 호출합니다. 입력값으로 사용자의 대화 맥락을 삽입합니다. 맥락에 냉장고 재고는 포함하지 않습니다. 이는 의무입니다. 사용자에게만 집중하십시오. 재료를 포함하지 마십시오.",
+                    "description": "Request cooking recipe recommendations based on the user's fridge status. Called when fridge inventory changes or appropriately within the user's conversation context. Insert the user's conversation context as input. Do not include fridge inventory in the context. This is mandatory. Focus only on the user. Do not include ingredients.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -282,7 +282,7 @@ class GPTRealtimeAssistant:
                 {
                     "type": "function",
                     "name": "select_recipe",
-                    "description": "사용자가 추천된 레시피를 선택합니다. 사용자에 의해 요청(키워드: 진행, 만들기, 결정, 선택)되는 경우에만 호출합니다.",
+                    "description": "User selects a recommended recipe. Called only when requested by user (keywords: proceed, make, decide, select).",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -303,7 +303,7 @@ class GPTRealtimeAssistant:
     
     async def update_session(self, session: Dict[str, Any]):
         """
-        세션 업데이트
+        세션 Update
         Go의 UpdateSession과 동일
         """
         message = {
@@ -419,7 +419,7 @@ class GPTRealtimeAssistant:
     
     async def _create_response(self):
         """
-        응답 생성 요청
+        응답 Create 요청
         Go의 createResponse와 동일
         """
         message_data = {
@@ -429,7 +429,7 @@ class GPTRealtimeAssistant:
     
     def _send_event(self, event_type: str, event: str, data: str):
         """
-        이벤트 전송 (큐에 추가)
+        이벤트 전송 (큐에 Add)
         Go의 sendEvent와 동일
         """
         realtime_event = RealtimeEvent(
@@ -448,11 +448,11 @@ class GPTRealtimeAssistant:
             await self.audio_channel.put(audio)
     
     async def get_audio_response_channel(self) -> asyncio.Queue:
-        """오디오 응답 채널 반환"""
+        """오디오 응답 채널 Returns"""
         return self.audio_channel
     
     async def get_event_channel(self) -> asyncio.Queue:
-        """이벤트 채널 반환"""
+        """이벤트 채널 Returns"""
         return self.event_channel
     
     def is_alive(self) -> bool:
@@ -464,7 +464,7 @@ class GPTRealtimeAssistant:
     
     async def close(self):
         """
-        연결 종료
+        연결 Cleanup
         Go의 Close와 동일
         """
         self.status = RealtimeAssistantStatus.DISCONNECTED

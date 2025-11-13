@@ -1,6 +1,6 @@
 """
-YOLO 객체 감지
-Go의 ybcore/object_detector.go를 Ultralytics로 대체
+YOLO Object Detection
+Go's ybcore/object_detector.go replaced with Ultralytics
 """
 from typing import List
 import yaml
@@ -11,8 +11,8 @@ from ultralytics import YOLO
 
 class ObjectDetection(BaseModel):
     """
-    객체 감지 결과
-    Go의 ObjectDetection 구조체와 동일
+    Object Detection result
+    Equivalent to Go's ObjectDetection struct
     """
     class_name: str
     confidence: float
@@ -24,21 +24,21 @@ class ObjectDetection(BaseModel):
 
 def parse_class_names(yaml_path: str) -> List[str]:
     """
-    YAML 파일에서 클래스 이름 파싱
-    Go의 ParseClassNames 함수와 동일
+    Parse class names from YAML file
+    Same as Go's ParseClassNames function
     
     Args:
-        yaml_path: YAML 파일 경로
+        yaml_path: YAML file path
     
     Returns:
-        클래스 이름 리스트
+        List of class names
     """
     with open(yaml_path, 'r', encoding='utf-8') as f:
         yaml_data = yaml.safe_load(f)
     
     names_dict = yaml_data.get('names', {})
     
-    # 인덱스 순서대로 정렬
+    # Sort by index order
     class_names = []
     for idx in sorted(names_dict.keys()):
         class_names.append(names_dict[idx])
@@ -48,15 +48,15 @@ def parse_class_names(yaml_path: str) -> List[str]:
 
 class YOLODetector:
     """
-    YOLO 객체 감지기
-    Go의 YOLODetector를 Ultralytics로 대체
+    YOLO Object Detector
+    Go's YOLODetector replaced with Ultralytics
     """
     
     def __init__(self, model_path: str, yaml_path: str, confidence: float):
         """
         Args:
-            model_path: ONNX 모델 경로
-            yaml_path: 클래스 이름 YAML 경로
+            model_path: ONNX model path
+            yaml_path: Class name YAML path
             confidence: confidence threshold
         """
         self.model = YOLO(model_path)
@@ -65,16 +65,16 @@ class YOLODetector:
     
     def detect(self, image: Image.Image) -> List[ObjectDetection]:
         """
-        이미지에서 객체 감지
-        Go의 Detect 함수와 동일한 출력
+        Detect objects in image
+        Same output as Go's Detect function
         
         Args:
             image: PIL Image
         
         Returns:
-            ObjectDetection 리스트
+            List of ObjectDetection
         """
-        # Ultralytics YOLO 추론
+        # Ultralytics YOLO inference
         results = self.model(image, conf=self.confidence, verbose=False)
         
         detections = []
@@ -89,7 +89,7 @@ class YOLODetector:
                 conf = float(box.conf[0])
                 xyxy = box.xyxy[0].tolist()
                 
-                # 클래스 이름 가져오기
+                # Get class name
                 if cls_id < len(self.class_names):
                     class_name = self.class_names[cls_id]
                 else:

@@ -1,6 +1,6 @@
 """
-비디오 객체 감지
-Go의 ybcore/video_object_detector.go 완벽 복제
+비디오 Object Detection
+Complete port of Go's ybcore/video_object_detector.go
 """
 import asyncio
 from typing import List
@@ -10,8 +10,8 @@ from core.object_detector import YOLODetector, ObjectDetection
 
 class VideoObjectDetector:
     """
-    비디오 스트림에서 객체 감지
-    Go의 VideoObjectDetector 구조체와 동일
+    비디오 스트림에서 Object Detection
+    Equivalent to Go's VideoObjectDetector struct
     """
     
     def __init__(self, detector: YOLODetector):
@@ -28,8 +28,8 @@ class VideoObjectDetector:
     
     async def start(self):
         """
-        객체 감지 시작
-        Go의 Start 함수와 동일한 동작
+        Object Detection Start
+        Same as Go's Start function한 동작
         """
         if self.running:
             return
@@ -39,15 +39,15 @@ class VideoObjectDetector:
     
     async def _detection_loop(self):
         """
-        객체 감지 루프
+        Object Detection 루프
         Go의 Start 함수 내 goroutine과 동일
         """
         while self.running:
             try:
-                # 타임아웃으로 종료 가능하도록
+                # 타임아웃으로 Cleanup 가능하도록
                 image = await asyncio.wait_for(self.image_queue.get(), timeout=1.0)
                 
-                # 이미 처리 중이면 건너뛰기 (Go의 동작과 동일)
+                # 이미 Handle 중이면 건너뛰기 (Go의 동작과 동일)
                 if self.image_progressing:
                     continue
                 
@@ -81,8 +81,8 @@ class VideoObjectDetector:
     
     async def stop(self):
         """
-        객체 감지 중지
-        Go의 Stop 함수와 동일
+        Object Detection Stop
+        Same as Go's Stop function
         """
         self.running = False
         
@@ -92,14 +92,14 @@ class VideoObjectDetector:
     
     def get_image_input_queue(self) -> asyncio.Queue:
         """
-        이미지 입력 큐 반환
+        이미지 입력 큐 Returns
         Go의 GetImageInputChannel과 동일
         """
         return self.image_queue
     
     def get_detection_result_queue(self) -> asyncio.Queue:
         """
-        감지 결과 큐 반환
+        감지 결과 큐 Returns
         Go의 GetDetectionResultChannel과 동일
         """
         return self.detection_queue

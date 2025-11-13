@@ -1,6 +1,6 @@
 """
-데이터 모델 테스트
-Go 서버의 models 패키지 동작을 검증
+Data Models 테스트
+Go 서버의 models 패키지 동작을 Validate
 """
 import pytest
 from datetime import datetime
@@ -13,7 +13,7 @@ class TestYoriWebEvent:
     """YoriWebEvent 모델 테스트"""
     
     def test_create_system_event(self):
-        """시스템 이벤트 생성 테스트"""
+        """시스템 이벤트 Create 테스트"""
         event = YoriWebEvent(
             type="system",
             event="password",
@@ -24,7 +24,7 @@ class TestYoriWebEvent:
         assert event.data == "Please enter your password"
     
     def test_create_assistant_event(self):
-        """어시스턴트 이벤트 생성 테스트"""
+        """어시스턴트 이벤트 Create 테스트"""
         event = YoriWebEvent(
             type="assistant",
             event="transcript",
@@ -34,7 +34,7 @@ class TestYoriWebEvent:
         assert event.event == "transcript"
     
     def test_create_user_event_with_list(self):
-        """사용자 이벤트 (리스트 데이터) 생성 테스트"""
+        """사용자 이벤트 (list 데이터) Create 테스트"""
         detections = [
             {"class": "brown-egg", "confidence": 0.9},
             {"class": "crab-meat", "confidence": 0.85}
@@ -65,7 +65,7 @@ class TestRecipeModels:
     """레시피 관련 모델 테스트"""
     
     def test_create_ingredient(self):
-        """식재료 생성 테스트"""
+        """식재료 Create 테스트"""
         ingredient = Ingredient(
             id="brown-egg",
             name="달걀",
@@ -76,7 +76,7 @@ class TestRecipeModels:
         assert ingredient.is_in_fridge is True
     
     def test_create_recipe_ingredient(self):
-        """레시피 식재료 생성 테스트"""
+        """레시피 식재료 Create 테스트"""
         recipe_ing = RecipeIngredient(
             id="brown-egg",
             quantity=4,
@@ -89,7 +89,7 @@ class TestRecipeModels:
         assert recipe_ing.required is True
     
     def test_create_recipe_step(self):
-        """레시피 단계 생성 테스트"""
+        """Recipe step information Create 테스트"""
         step = RecipeStep(
             order=1,
             title="양파 다지기",
@@ -100,14 +100,14 @@ class TestRecipeModels:
         assert "양파" in step.description
     
     def test_create_recipe(self):
-        """레시피 생성 테스트"""
+        """레시피 Create 테스트"""
         ingredients = [
             RecipeIngredient(id="crab-meat", quantity=4, unit="ea", required=True),
             RecipeIngredient(id="onion", quantity=1, unit="/4", required=True)
         ]
         steps = [
             RecipeStep(order=1, title="준비", description="재료를 준비합니다."),
-            RecipeStep(order=2, title="조리", description="조리를 시작합니다.")
+            RecipeStep(order=2, title="조리", description="조리를 Start합니다.")
         ]
         
         recipe = Recipe(
@@ -129,10 +129,10 @@ class TestRecipeModels:
 
 
 class TestCooking:
-    """요리 기록 모델 테스트"""
+    """Cooking Record Model 테스트"""
     
     def test_create_cooking(self):
-        """요리 기록 생성 테스트"""
+        """요리 기록 Create 테스트"""
         now = datetime.now()
         cooking = Cooking(
             recipe_id=1,

@@ -1,6 +1,6 @@
 """
-레시피 모델
-Go의 models/recipe.go 완벽 복제
+Recipe Models
+Complete port of Go's models/recipe.go
 """
 from pydantic import BaseModel
 from typing import List
@@ -8,8 +8,8 @@ from typing import List
 
 class Ingredient(BaseModel):
     """
-    식재료 정보
-    Go의 Ingredient 구조체와 동일
+    Ingredient information
+    Equivalent to Go's Ingredient struct
     """
     id: str
     name: str
@@ -18,8 +18,8 @@ class Ingredient(BaseModel):
 
 class RecipeIngredient(BaseModel):
     """
-    레시피에 사용되는 식재료와 수량
-    Go의 RecipeIngredient 구조체와 동일
+    Ingredient with quantity used in recipe
+    Equivalent to Go's RecipeIngredient struct
     """
     id: str
     quantity: int
@@ -29,8 +29,8 @@ class RecipeIngredient(BaseModel):
 
 class RecipeStep(BaseModel):
     """
-    레시피 단계
-    Go의 RecipeStep 구조체와 동일
+    Recipe step information
+    Equivalent to Go's RecipeStep struct
     """
     order: int
     title: str
@@ -39,8 +39,8 @@ class RecipeStep(BaseModel):
 
 class Recipe(BaseModel):
     """
-    레시피 정보
-    Go의 Recipe 구조체와 동일
+    Recipe information
+    Equivalent to Go's Recipe struct
     """
     id: int
     time: int
@@ -48,4 +48,3 @@ class Recipe(BaseModel):
     description: str
     ingredients: List[RecipeIngredient]
     steps: List[RecipeStep]
-

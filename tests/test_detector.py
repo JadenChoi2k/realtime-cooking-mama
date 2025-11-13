@@ -1,6 +1,6 @@
 """
-YOLO 객체 감지 테스트
-Go 서버의 ybcore/object_detector.go와 video_object_detector.go 동작을 검증
+YOLO Object Detection 테스트
+Go 서버의 ybcore/object_detector.go와 video_object_detector.go 동작을 Validate
 """
 import pytest
 import numpy as np
@@ -11,7 +11,7 @@ from core.video_detector import VideoObjectDetector
 
 @pytest.fixture
 def test_image():
-    """테스트용 이미지 생성"""
+    """테스트용 이미지 Create"""
     # 640x640 빨간색 이미지
     img_array = np.zeros((640, 640, 3), dtype=np.uint8)
     img_array[:, :, 0] = 255  # 빨간색
@@ -24,12 +24,12 @@ class TestYOLODetector:
     def test_parse_class_names(self):
         """YAML 파일에서 클래스 이름 파싱"""
         # 실제 data-names.yaml이 있다면 테스트
-        # 여기서는 구조만 검증
+        # 여기서는 구조만 Validate
         pass
     
     @pytest.mark.skipif(True, reason="ONNX 모델 파일이 필요")
     def test_detector_init(self):
-        """YOLODetector 초기화 테스트"""
+        """YOLODetector Initialize 테스트"""
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -40,7 +40,7 @@ class TestYOLODetector:
     
     @pytest.mark.skipif(True, reason="ONNX 모델 파일이 필요")
     def test_detect(self, test_image):
-        """객체 감지 테스트"""
+        """Object Detection 테스트"""
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -68,7 +68,7 @@ class TestVideoObjectDetector:
     @pytest.mark.asyncio
     @pytest.mark.skipif(True, reason="ONNX 모델 파일이 필요")
     async def test_video_detector_init(self):
-        """VideoObjectDetector 초기화 테스트"""
+        """VideoObjectDetector Initialize 테스트"""
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -83,7 +83,7 @@ class TestVideoObjectDetector:
     @pytest.mark.asyncio
     @pytest.mark.skipif(True, reason="ONNX 모델 파일이 필요")
     async def test_video_detector_start_stop(self):
-        """VideoObjectDetector 시작/중지 테스트"""
+        """VideoObjectDetector Start/Stop 테스트"""
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -128,7 +128,7 @@ class TestVideoObjectDetector:
     @pytest.mark.asyncio
     @pytest.mark.skipif(True, reason="ONNX 모델 파일이 필요")
     async def test_video_detector_skip_when_progressing(self, test_image):
-        """이미지 처리 중일 때 건너뛰기 테스트"""
+        """이미지 Handle 중일 때 건너뛰기 테스트"""
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -143,8 +143,8 @@ class TestVideoObjectDetector:
         for _ in range(10):
             await image_queue.put(test_image)
         
-        # 처리 중 플래그 확인
-        # (실제로는 일부만 처리됨)
+        # Handle 중 플래그 확인
+        # (실제로는 일부만 Handle됨)
         
         await vod.stop()
 
@@ -153,7 +153,7 @@ class TestObjectDetection:
     """ObjectDetection 모델 테스트"""
     
     def test_object_detection_creation(self):
-        """ObjectDetection 생성 테스트"""
+        """ObjectDetection Create 테스트"""
         detection = ObjectDetection(
             class_name="brown-egg",
             confidence=0.95,

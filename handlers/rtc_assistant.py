@@ -1,6 +1,6 @@
 """
 WebRTC Assistant Handler
-Go의 rtc_handler/rtc_assistant.go 완벽 복제
+Complete port of Go's rtc_handler/rtc_assistant.go
 """
 import asyncio
 import json
@@ -45,10 +45,10 @@ class AudioStreamTrack(MediaStreamTrack):
         self.queue = asyncio.Queue()
     
     async def recv(self):
-        """오디오 프레임 반환"""
+        """오디오 프레임 Returns"""
         audio_data = await self.queue.get()
         
-        # PCM16 데이터를 AudioFrame으로 변환
+        # PCM16 데이터를 AudioFrame으로 Convert
         frame = av.AudioFrame.from_ndarray(
             np.frombuffer(audio_data, dtype=np.int16).reshape(1, -1),
             format='s16',
@@ -60,14 +60,14 @@ class AudioStreamTrack(MediaStreamTrack):
         return frame
     
     async def add_audio(self, audio_data: bytes):
-        """오디오 데이터 추가"""
+        """오디오 데이터 Add"""
         await self.queue.put(audio_data)
 
 
 class RTCYoriAssistant:
     """
     WebRTC Yori Assistant
-    Go의 RTCYoriAssistant 완벽 복제
+    Complete port of Go's RTCYoriAssistant
     """
     
     def __init__(self, websocket: WebSocket, yolo_model, api_key: str):
@@ -95,8 +95,8 @@ class RTCYoriAssistant:
     
     async def start(self):
         """
-        Assistant 시작
-        Go의 Start 함수 완벽 복제
+        Assistant Start
+        Complete port of Go's Start 함수
         """
         print("WebRTC Assistant connection established")
         await self._write_json({
@@ -105,13 +105,13 @@ class RTCYoriAssistant:
             "data": "websocket connected"
         })
         
-        # 리소스 초기화
+        # 리소스 Initialize
         await self._init_resources()
         
-        # WebRTC PeerConnection 생성
+        # WebRTC PeerConnection Create
         self.pc = RTCPeerConnection()
         
-        # 오디오 트랙 추가 (서버 → 클라이언트)
+        # 오디오 트랙 Add (서버 → 클라이언트)
         self.audio_track = AudioStreamTrack()
         self.pc.addTrack(self.audio_track)
         
@@ -135,13 +135,13 @@ class RTCYoriAssistant:
                 print("PeerConnection has connected successfully.")
                 self.pc_connected = True
                 
-                # GPT Assistant 초기화
+                # GPT Assistant Initialize
                 await self._init_gpt_assistant()
                 
-                # 오디오 전송 루프 시작
+                # 오디오 전송 루프 Start
                 asyncio.create_task(self._audio_sender_loop())
                 
-                # 이벤트 전송 루프 시작
+                # 이벤트 전송 루프 Start
                 asyncio.create_task(self._event_sender_loop())
             
             elif self.pc.connectionState == "closed":
@@ -175,7 +175,7 @@ class RTCYoriAssistant:
     
     async def _init_resources(self):
         """
-        리소스 초기화
+        리소스 Initialize
         Go의 NewRTCYoriAssistant 로직
         """
         # 레시피 JSON 로드
@@ -190,7 +190,7 @@ class RTCYoriAssistant:
             print("Failed to get crab sandwich recipe")
             return
         
-        # DB 초기화
+        # DB Initialize
         mongodb_uri = os.getenv("MONGODB_URI", "")
         if mongodb_uri:
             # MongoDB 대신 SQLite 사용
@@ -198,16 +198,16 @@ class RTCYoriAssistant:
             await self.yori_db.init_db()
             print("Connected to Database!")
         
-        # RecipeHelper 초기화
+        # RecipeHelper Initialize
         self.recipe_helper = RecipeHelper(crab_sandwich_recipe)
         
-        # Fridge 초기화
+        # Fridge Initialize
         self.fridge = Fridge(self.recipe_source)
     
     async def _init_gpt_assistant(self):
         """
-        GPT Assistant 초기화
-        Go의 initGPTAssistant 완벽 복제
+        GPT Assistant Initialize
+        Complete port of Go's initGPTAssistant
         """
         if not self.api_key:
             print("API key is not provided")
@@ -232,7 +232,7 @@ class RTCYoriAssistant:
     async def _handle_function_call(self, call_id: str, name: str, arguments: str) -> tuple[str, Optional[Exception]]:
         """
         함수 호출 핸들러 (10개 함수)
-        Go의 onFunctionCall 완벽 복제
+        Complete port of Go's onFunctionCall
         """
         print(f"Handling function call: {call_id}, {name}, {arguments}")
         
@@ -281,7 +281,7 @@ class RTCYoriAssistant:
                     "data": [recipe.model_dump() for recipe in recipes]
                 }))
                 
-                # DTO 생성
+                # DTO Create
                 recipe_dtos = []
                 for recipe in recipes:
                     recipe_dtos.append({
@@ -300,7 +300,7 @@ class RTCYoriAssistant:
                     return "recipe_id is not provided", None
                 
                 if recipe_id == 1:
-                    # 세션 업데이트
+                    # 세션 Update
                     await self._update_session_to_start_cooking()
                     
                     asyncio.create_task(self._write_json({
@@ -316,12 +316,12 @@ class RTCYoriAssistant:
             
             elif name == "get_ready_for_cooking":
                 if not self.on_cooking:
-                    return "아직 요리를 시작하지 않았습니다. 레시피를 선택해주세요.", None
-                return "게살 샌드위치를 선택하셨네요. 요리 준비가 완료되면 말씀해주세요!", None
+                    return "아직 요리를 Start하지 않았습니다. 레시피를 선택해주세요.", None
+                return "게살 샌드위치를 선택하셨네요. 요리 준비가 complete되면 말씀해주세요!", None
             
             elif name == "go_next_step":
                 if not self.on_cooking:
-                    return "아직 요리를 시작하지 않았습니다. 레시피를 선택해주세요.", None
+                    return "아직 요리를 Start하지 않았습니다. 레시피를 선택해주세요.", None
                 
                 step, last_step = self.recipe_helper.go_next_step()
                 asyncio.create_task(self._write_json({
@@ -338,7 +338,7 @@ class RTCYoriAssistant:
             
             elif name == "go_previous_step":
                 if not self.on_cooking:
-                    return "아직 요리를 시작하지 않았습니다. 레시피를 선택해주세요.", None
+                    return "아직 요리를 Start하지 않았습니다. 레시피를 선택해주세요.", None
                 
                 step = self.recipe_helper.go_previous_step()
                 asyncio.create_task(self._write_json({
@@ -351,11 +351,11 @@ class RTCYoriAssistant:
             
             elif name == "recipe_done":
                 if not self.on_cooking:
-                    return "아직 요리를 시작하지 않았습니다. 레시피를 선택해주세요.", None
+                    return "아직 요리를 Start하지 않았습니다. 레시피를 선택해주세요.", None
                 
                 done = self.recipe_helper.mark_done()
                 if not done:
-                    return "요리가 완료되지 않았습니다.", None
+                    return "요리가 complete되지 않았습니다.", None
                 
                 self.on_cooking = False
                 
@@ -391,17 +391,17 @@ class RTCYoriAssistant:
     
     async def _update_session_to_start_cooking(self):
         """
-        세션 업데이트 (요리 시작 모드로 전환)
-        Go의 updateSessionToStartCooking 완벽 복제
+        세션 Update (요리 Start 모드로 전환)
+        Complete port of Go's updateSessionToStartCooking
         """
-        instructions = """당신은 친근한 어시스턴트입니다. 당신의 이름은 '요리보'입니다. 유저는 현재 냉장고 탐색을 끝내고, 레시피를 선택하여 요리를 시작하는 상황입니다. 유저가 요리를 준비하기까지 대기하십시오.
-**다음 지시문을 필수적으로 지키십시오**
+        instructions = """당신은 친근한 어시스턴트입니다. 당신의 이름은 '요리보'입니다. 유저는 현재 냉장고 탐색을 끝내고, 레시피를 선택하여 요리를 Start하는 상황입니다. 유저가 요리를 준비하기까지 대기하십시오.
+**next 지시문을 필수적으로 지키십시오**
 - 짧고 간결하게 말하십시오. 절대로 길게 말하지 마십시오.
-- 가이드는 레시피 단계와 함께 주어집니다. 가이드를 있는 그대로 말하십시오.
-- 유저가 확실하게 요청하지 않는 한, 레시피 단계를 건너뛰지 마십시오. 웬만하면 건너뛰지 마십시오.
-- go_next_step 함수를 호출하기 전 유저에게 먼저 물어보십시오. 유저가 '예' 또는 '아니오'라고 대답할 때까지 계속 되물으십시오.
+- 가이드는 Recipe step information와 함께 주어집니다. 가이드를 있는 그대로 말하십시오.
+- 유저가 확실하게 요청하지 않는 한, Recipe step information를 건너뛰지 마십시오. 웬만하면 건너뛰지 마십시오.
+- go_next_step 함수를 호출하기 전 유저에게 먼저 물어보십시오. 유저가 'e.g.' 또는 '아니오'라고 대답할 때까지 계속 되물으십시오.
 - 유저의 요청이 어색하거나 식별되지 않으면, '죄송합니다. 다시 한 번 말씀해주실 수 있으신가요?'라고 되물으십시오. 유저가 명확하게 대답할 때까지 계속 되물으십시오.
-- 레시피 단계는 함수에 의해서만 제어됩니다. 마지막 함수에서 반환된 레시피 단계만을 알려주십시오.
+- Recipe step information는 함수에 의해서만 제어됩니다. 마지막 함수에서 Returns된 Recipe step information만을 알려주십시오.
 - 마지막 단계에서는 유저에게 요리를 마칠지 물어보십시오."""
         
         session_update = {
@@ -423,7 +423,7 @@ class RTCYoriAssistant:
                 {
                     "type": "function",
                     "name": "go_next_step",
-                    "description": "레시피를 다음 단계로 넘어가기 위해 호출합니다. 변경된 레시피 단계를 반환합니다. 키워드는 '다음'입니다.",
+                    "description": "레시피를 next 단계로 넘어가기 위해 호출합니다. 변경된 Recipe step information를 Returns합니다. 키워드는 'next'입니다.",
                     "parameters": {
                         "type": "object",
                         "properties": {}
@@ -432,7 +432,7 @@ class RTCYoriAssistant:
                 {
                     "type": "function",
                     "name": "go_previous_step",
-                    "description": "레시피를 이전 단계로 돌아가기 위해 호출합니다. 변경된 레시피 단계를 반환합니다. 키워드는 '이전'입니다.",
+                    "description": "레시피를 previous 단계로 돌아가기 위해 호출합니다. 변경된 Recipe step information를 Returns합니다. 키워드는 'previous'입니다.",
                     "parameters": {
                         "type": "object",
                         "properties": {}
@@ -441,7 +441,7 @@ class RTCYoriAssistant:
                 {
                     "type": "function",
                     "name": "recipe_done",
-                    "description": "레시피를 완료하기 위해 호출합니다. 요리 결과를 반환합니다. 키워드는 '완료'입니다.",
+                    "description": "레시피를 complete하기 위해 호출합니다. 요리 결과를 Returns합니다. 키워드는 'complete'입니다.",
                     "parameters": {
                         "type": "object",
                         "properties": {}
@@ -473,7 +473,7 @@ class RTCYoriAssistant:
                     print("Audio channel closed, stopping audio processing")
                     break
                 
-                # PCM16 → Opus 변환 (24kHz 1ch → 48kHz 2ch)
+                # PCM16 → Opus Convert (24kHz 1ch → 48kHz 2ch)
                 opus_data = opus_handler.convert_pcm16_to_opus(audio, 24000, 1)
                 
                 # 전송
@@ -551,7 +551,7 @@ class RTCYoriAssistant:
         비디오 트랙 핸들링
         Go의 handleVideoTrack (861-916번 라인)
         """
-        # YOLO detector 생성
+        # YOLO detector Create
         detector = YOLODetector(
             model_path="./resources/yori_detector.onnx",
             yaml_path="./resources/data-names.yaml",
@@ -562,10 +562,10 @@ class RTCYoriAssistant:
         await vod.start()
         print("Video object detector started")
         
-        # 감지 결과 처리 루프
+        # 감지 결과 Handle 루프
         asyncio.create_task(self._detection_result_loop(vod))
         
-        # 프레임 처리 루프
+        # 프레임 Handle 루프
         while True:
             try:
                 frame = await track.recv()
@@ -574,7 +574,7 @@ class RTCYoriAssistant:
                 img = frame.to_ndarray(format="rgb24")
                 image = Image.fromarray(img)
                 
-                # YOLO 큐에 추가
+                # YOLO 큐에 Add
                 await vod.get_image_input_queue().put(image)
             
             except Exception as e:
@@ -584,7 +584,7 @@ class RTCYoriAssistant:
     
     async def _detection_result_loop(self, vod: VideoObjectDetector):
         """
-        감지 결과 처리 루프
+        감지 결과 Handle 루프
         Go의 306-355번 라인 로직
         """
         result_queue = vod.get_detection_result_queue()
@@ -597,7 +597,7 @@ class RTCYoriAssistant:
                 async with self.detection_lock:
                     self.detections = detection_result
                     
-                    # 첫 객체 감지
+                    # 첫 Object Detection
                     if not self.first_object_detected and len(detection_result) > 0:
                         self.first_object_detected = True
                         asyncio.create_task(self._write_json({
@@ -613,7 +613,7 @@ class RTCYoriAssistant:
                     "data": [d.model_dump() for d in self.detections]
                 })
                 
-                # 냉장고 업데이트
+                # 냉장고 Update
                 detected_items = [d.class_name for d in self.detections]
                 items, changed = await self.fridge.looked(detected_items)
                 
@@ -651,7 +651,7 @@ class RTCYoriAssistant:
                 if os.getenv("DEBUG_MODE") == "true":
                     print(f"Received message: {msg}")
                 
-                # ICE candidate 처리
+                # ICE candidate Handle
                 if "candidate" in msg:
                     candidate = RTCIceCandidate(
                         candidate=msg["candidate"],
@@ -664,11 +664,11 @@ class RTCYoriAssistant:
                 msg_type = msg.get("type")
                 
                 if msg_type == "offer":
-                    # SDP offer 처리
+                    # SDP offer Handle
                     offer = RTCSessionDescription(sdp=msg["sdp"], type="offer")
                     await self.pc.setRemoteDescription(offer)
                     
-                    # Answer 생성
+                    # Answer Create
                     answer = await self.pc.createAnswer()
                     await self.pc.setLocalDescription(answer)
                     

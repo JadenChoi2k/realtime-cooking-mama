@@ -1,6 +1,6 @@
 """
-텍스트 유틸리티
-Go의 utils/text_utils.go 완벽 복제
+Text Utilities
+Complete port of Go's utils/text_utils.go
 """
 import random
 import string
@@ -8,15 +8,14 @@ import string
 
 def get_random_string(length: int) -> str:
     """
-    랜덤 문자열 생성
-    Go의 GetRandomString 함수와 동일한 동작
+    Generate random string
+    Same behavior as Go's GetRandomString function
     
     Args:
-        length: 생성할 문자열 길이
+        length: Length of string to generate
     
     Returns:
-        랜덤 알파벳 문자열
+        Random alphabetic string
     """
     letters = string.ascii_letters  # a-z, A-Z
     return ''.join(random.choice(letters) for _ in range(length))
-

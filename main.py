@@ -1,6 +1,6 @@
 """
 Realtime Cooking Mama Server
-Go의 main.go 완벽 복제 (Python 버전)
+Complete Python port of Go's main.go
 """
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -10,15 +10,15 @@ import os
 from dotenv import load_dotenv
 from handlers.rtc_assistant import RTCYoriAssistant
 
-# 환경 변수 로드
+# Load environment variables
 profile = os.getenv("PROFILE", "")
 if profile == "local" or profile == "":
     load_dotenv()
 
-# FastAPI 앱 생성
+# Create FastAPI app
 app = FastAPI()
 
-# YOLO 모델 글로벌 로드
+# Load YOLO model globally
 print("Loading YOLO model...")
 yolo_model = YOLO('./resources/yori_detector.onnx')
 print("✅ YOLO model loaded successfully")
@@ -27,8 +27,8 @@ print("✅ YOLO model loaded successfully")
 @app.get("/")
 async def index():
     """
-    메인 페이지 (test.html 제공)
-    Go의 main.go 31-33번 라인과 동일
+    Serve test.html as main page
+    Equivalent to Go's main.go lines 31-33
     """
     with open("test.html", "r", encoding="utf-8") as f:
         html_content = f.read()
@@ -38,12 +38,12 @@ async def index():
 @app.websocket("/signal")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket 시그널링 엔드포인트
-    클라이언트로부터 OpenAI API Key를 받음
+    WebSocket signaling endpoint
+    Accepts OpenAI API Key from client
     """
     await websocket.accept()
     
-    # API 키 요청
+    # Request API key
     await websocket.send_json({
         "type": "system",
         "event": "api_key",
@@ -64,7 +64,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close()
             return
         
-        # RTCYoriAssistant 시작 (API 키 전달)
+        # Start RTCYoriAssistant with API key
         assistant = RTCYoriAssistant(websocket, yolo_model, api_key)
         await assistant.start()
         

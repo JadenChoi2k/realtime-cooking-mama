@@ -1,6 +1,6 @@
 """
-데이터베이스 핸들러 테스트
-Go 서버의 ybcore/db_handler.go 동작을 검증
+Database Handler 테스트
+Go 서버의 ybcore/db_handler.go 동작을 Validate
 """
 import pytest
 import os
@@ -13,7 +13,7 @@ from models.cooking import Cooking
 async def db():
     """테스트용 데이터베이스 픽스처"""
     db_path = "test_yori.db"
-    # 기존 테스트 DB 삭제
+    # 기존 테스트 DB Delete
     if os.path.exists(db_path):
         os.remove(db_path)
     
@@ -30,8 +30,8 @@ async def db():
 
 @pytest.mark.asyncio
 async def test_db_init(db):
-    """데이터베이스 초기화 테스트"""
-    # DB가 정상적으로 초기화되었는지 확인
+    """데이터베이스 Initialize 테스트"""
+    # DB가 정상적으로 Initialize되었는지 확인
     assert db is not None
 
 
@@ -53,8 +53,8 @@ async def test_save_cooking(db):
 
 @pytest.mark.asyncio
 async def test_get_cooking_counts(db):
-    """요리 횟수 조회 테스트"""
-    # 레시피 1을 3번 완료
+    """요리 횟수 Get/Retrieve 테스트"""
+    # 레시피 1을 3번 complete
     for i in range(3):
         cooking = Cooking(
             recipe_id=1,
@@ -63,7 +63,7 @@ async def test_get_cooking_counts(db):
         )
         await db.save_cooking(cooking)
     
-    # 레시피 2를 1번 완료
+    # 레시피 2를 1번 complete
     cooking = Cooking(
         recipe_id=2,
         elapsed_seconds=500,
@@ -83,7 +83,7 @@ async def test_get_cooking_counts(db):
 
 @pytest.mark.asyncio
 async def test_get_cooking_counts_empty(db):
-    """빈 데이터베이스에서 횟수 조회"""
+    """빈 데이터베이스에서 횟수 Get/Retrieve"""
     count = await db.get_cooking_counts(1)
     assert count == 0
 

@@ -1,6 +1,6 @@
 """
-데이터베이스 핸들러
-Go의 ybcore/db_handler.go 완벽 복제 (SQLite 사용)
+Database Handler
+Complete port of Go's ybcore/db_handler.go (SQLite 사용)
 """
 import aiosqlite
 from models.cooking import Cooking
@@ -8,7 +8,7 @@ from models.cooking import Cooking
 
 class YoriDB:
     """
-    요리 데이터베이스 핸들러
+    요리 Database Handler
     Go의 YoriMongoDB를 SQLite로 대체
     """
     
@@ -22,11 +22,11 @@ class YoriDB:
     
     async def init_db(self):
         """
-        데이터베이스 초기화 및 테이블 생성
+        데이터베이스 Initialize 및 테이블 Create
         """
         self.connection = await aiosqlite.connect(self.db_path)
         
-        # cookings 테이블 생성
+        # cookings 테이블 Create
         await self.connection.execute("""
             CREATE TABLE IF NOT EXISTS cookings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +56,7 @@ class YoriDB:
     
     async def get_cooking_counts(self, recipe_id: int) -> int:
         """
-        특정 레시피의 요리 횟수 조회
+        특정 레시피의 요리 횟수 Get/Retrieve
         Go의 GetCookingCounts와 동일
         
         Args:
@@ -76,7 +76,7 @@ class YoriDB:
         return result[0] if result else 0
     
     async def close(self):
-        """데이터베이스 연결 종료"""
+        """데이터베이스 연결 Cleanup"""
         if self.connection:
             await self.connection.close()
             self.connection = None

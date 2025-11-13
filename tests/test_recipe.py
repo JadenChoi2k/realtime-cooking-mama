@@ -1,6 +1,6 @@
 """
 레시피 로직 테스트
-Go 서버의 ybcore/yori_recipe.go 동작을 검증
+Go 서버의 ybcore/yori_recipe.go 동작을 Validate
 """
 import pytest
 from datetime import datetime, timedelta
@@ -56,13 +56,13 @@ class TestRecipeSource:
     """RecipeSource 테스트"""
     
     def test_init(self, sample_recipe_json):
-        """RecipeSource 초기화 테스트"""
+        """RecipeSource Initialize 테스트"""
         source = RecipeSource(sample_recipe_json)
         assert len(source.ingredients) == 4
         assert len(source.recipes) == 2
     
     def test_get_ingredient_by_id(self, sample_recipe_json):
-        """식재료 ID로 조회"""
+        """식재료 ID로 Get/Retrieve"""
         source = RecipeSource(sample_recipe_json)
         
         ingredient = source.get_ingredient_by_id("brown-egg")
@@ -71,14 +71,14 @@ class TestRecipeSource:
         assert ingredient.is_in_fridge is True
     
     def test_get_ingredient_by_id_not_found(self, sample_recipe_json):
-        """존재하지 않는 식재료 조회"""
+        """존재하지 않는 식재료 Get/Retrieve"""
         source = RecipeSource(sample_recipe_json)
         
         ingredient = source.get_ingredient_by_id("unknown")
         assert ingredient is None
     
     def test_get_recipe_by_id(self, sample_recipe_json):
-        """레시피 ID로 조회"""
+        """레시피 ID로 Get/Retrieve"""
         source = RecipeSource(sample_recipe_json)
         
         recipe = source.get_recipe_by_id(1)
@@ -88,7 +88,7 @@ class TestRecipeSource:
         assert len(recipe.steps) == 3
     
     def test_get_recipes_by_ids(self, sample_recipe_json):
-        """여러 레시피 ID로 조회"""
+        """여러 레시피 ID로 Get/Retrieve"""
         source = RecipeSource(sample_recipe_json)
         
         recipes = source.get_recipes_by_ids([1, 2])
@@ -117,13 +117,13 @@ class TestRecipeHelper:
         )
     
     def test_init(self, sample_recipe):
-        """RecipeHelper 초기화 테스트"""
+        """RecipeHelper Initialize 테스트"""
         helper = RecipeHelper(sample_recipe)
         assert helper.current_step == 0
         assert helper.done_flag is False
     
     def test_get_current_step_before_start(self, sample_recipe):
-        """시작 전 현재 단계 (currentStep <= 0일 때 "요리 준비" 반환)"""
+        """Start 전 현재 단계 (currentStep <= 0일 때 "요리 준비" Returns)"""
         helper = RecipeHelper(sample_recipe)
         
         step = helper.get_current_step()
@@ -132,7 +132,7 @@ class TestRecipeHelper:
         assert "준비" in step.description
     
     def test_go_next_step(self, sample_recipe):
-        """다음 단계로 이동"""
+        """next 단계로 이동"""
         helper = RecipeHelper(sample_recipe)
         
         # 1단계로 이동
@@ -152,7 +152,7 @@ class TestRecipeHelper:
         assert is_last is True
     
     def test_go_previous_step(self, sample_recipe):
-        """이전 단계로 이동"""
+        """previous 단계로 이동"""
         helper = RecipeHelper(sample_recipe)
         
         # 3단계까지 이동
@@ -168,12 +168,12 @@ class TestRecipeHelper:
         step = helper.go_previous_step()
         assert step.order == 1
         
-        # 1단계에서 더 이전으로 가려고 하면 1단계 유지
+        # 1단계에서 더 previous으로 가려고 하면 1단계 유지
         step = helper.go_previous_step()
         assert step.order == 1
     
     def test_done_before_last_step(self, sample_recipe):
-        """마지막 단계 전에 완료 시도"""
+        """마지막 단계 전에 complete 시도"""
         helper = RecipeHelper(sample_recipe)
         
         helper.go_next_step()  # 1단계
@@ -183,7 +183,7 @@ class TestRecipeHelper:
         assert helper.done_flag is False
     
     def test_done_at_last_step(self, sample_recipe):
-        """마지막 단계에서 완료"""
+        """마지막 단계에서 complete"""
         helper = RecipeHelper(sample_recipe)
         
         helper.go_next_step()  # 1단계
@@ -204,10 +204,10 @@ class TestRecipeHelper:
         
         elapsed = helper.get_elapsed_time()
         assert elapsed.total_seconds() >= 0.1
-        assert helper.end_time is None  # 아직 완료 안 함
+        assert helper.end_time is None  # 아직 complete 안 함
     
     def test_get_elapsed_time_after_done(self, sample_recipe):
-        """완료 후 경과 시간"""
+        """complete 후 경과 시간"""
         import time
         helper = RecipeHelper(sample_recipe)
         
@@ -222,18 +222,18 @@ class TestRecipeHelper:
         time.sleep(0.1)
         elapsed2 = helper.get_elapsed_time()
         
-        # 완료 후에는 시간이 고정됨
+        # complete 후에는 시간이 고정됨
         assert abs(elapsed1.total_seconds() - elapsed2.total_seconds()) < 0.01
     
     def test_get_elapsed_time_string(self, sample_recipe):
-        """경과 시간 문자열"""
+        """경과 시간 string"""
         helper = RecipeHelper(sample_recipe)
         
-        # 완료 전
+        # complete 전
         time_str = helper.get_elapsed_time_string()
         assert "아직 요리 중입니다" in time_str
         
-        # 완료 후
+        # complete 후
         helper.go_next_step()
         helper.go_next_step()
         helper.go_next_step()

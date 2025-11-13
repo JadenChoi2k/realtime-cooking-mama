@@ -1,6 +1,6 @@
 """
-레시피 관리
-Go의 ybcore/yori_recipe.go 완벽 복제
+Recipe Management
+Complete port of Go's ybcore/yori_recipe.go
 """
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
@@ -9,8 +9,8 @@ from models.recipe import Ingredient, Recipe, RecipeIngredient, RecipeStep
 
 class RecipeSource:
     """
-    레시피 소스 (JSON 데이터 관리)
-    Go의 RecipeSource 구조체와 동일
+    레시피 소스 (JSON 데이터 Manage)
+    Equivalent to Go's RecipeSource struct
     """
     
     def __init__(self, json_data: dict):
@@ -55,7 +55,7 @@ class RecipeSource:
                 )
                 steps.append(recipe_step)
             
-            # 레시피 생성
+            # 레시피 Create
             recipe = Recipe(
                 id=item["id"],
                 time=item["time"],
@@ -68,7 +68,7 @@ class RecipeSource:
     
     def get_ingredient_by_id(self, id: str) -> Optional[Ingredient]:
         """
-        식재료 ID로 조회
+        식재료 ID로 Get/Retrieve
         Go의 GetIngredientByID와 동일
         
         Args:
@@ -81,14 +81,14 @@ class RecipeSource:
     
     def get_recipes_by_ids(self, ids: List[int]) -> List[Recipe]:
         """
-        레시피 ID 리스트로 여러 레시피 조회
+        레시피 ID list로 여러 레시피 Get/Retrieve
         Go의 GetRecipesByIDs와 동일
         
         Args:
-            ids: 레시피 ID 리스트
+            ids: 레시피 ID list
         
         Returns:
-            Recipe 리스트
+            Recipe list
         """
         recipes = []
         for recipe_id in ids:
@@ -100,7 +100,7 @@ class RecipeSource:
     
     def get_recipe_by_id(self, id: int) -> Optional[Recipe]:
         """
-        레시피 ID로 조회
+        레시피 ID로 Get/Retrieve
         Go의 GetRecipeByID와 동일
         
         Args:
@@ -118,7 +118,7 @@ class RecipeSource:
 class RecipeHelper:
     """
     레시피 진행 도우미
-    Go의 RecipeHelper 구조체와 동일
+    Equivalent to Go's RecipeHelper struct
     """
     
     def __init__(self, recipe: Recipe):
@@ -134,16 +134,16 @@ class RecipeHelper:
     
     def get_recipe(self) -> Recipe:
         """
-        레시피 반환
+        레시피 Returns
         Go의 GetRecipe와 동일
         """
         return self.recipe
     
     def get_current_step(self) -> RecipeStep:
         """
-        현재 단계 반환
+        현재 단계 Returns
         Go의 GetCurrentStep과 동일
-        currentStep <= 0일 때 "요리 준비" 단계 반환
+        currentStep <= 0일 때 "요리 준비" 단계 Returns
         
         Returns:
             RecipeStep
@@ -152,13 +152,13 @@ class RecipeHelper:
             return RecipeStep(
                 order=1,
                 title="요리 준비",
-                description="요리를 준비합니다. 시작할 준비가 되면 알려주세요."
+                description="요리를 준비합니다. Start할 준비가 되면 알려주세요."
             )
         return self.recipe.steps[self.current_step - 1]
     
     def go_previous_step(self) -> RecipeStep:
         """
-        이전 단계로 이동
+        previous 단계로 이동
         Go의 GoPreviousStep과 동일
         
         Returns:
@@ -173,7 +173,7 @@ class RecipeHelper:
     
     def go_next_step(self) -> Tuple[RecipeStep, bool]:
         """
-        다음 단계로 이동
+        next 단계로 이동
         Go의 GoNextStep과 동일
         
         Returns:
@@ -187,11 +187,11 @@ class RecipeHelper:
     
     def mark_done(self) -> bool:
         """
-        요리 완료 표시
-        Go의 Done 함수와 동일
+        요리 complete 표시
+        Same as Go's Done function
         
         Returns:
-            완료 여부 (마지막 단계가 아니면 False)
+            complete 여부 (마지막 단계가 아니면 False)
         """
         if self.current_step < len(self.recipe.steps):
             return False
@@ -202,7 +202,7 @@ class RecipeHelper:
     
     def get_elapsed_time(self) -> timedelta:
         """
-        경과 시간 반환
+        경과 시간 Returns
         Go의 GetElapsedTime과 동일
         
         Returns:
@@ -214,11 +214,11 @@ class RecipeHelper:
     
     def get_elapsed_time_string(self) -> str:
         """
-        경과 시간 문자열 반환
+        경과 시간 string Returns
         Go의 GetElapsedTimeString과 동일
         
         Returns:
-            경과 시간 문자열
+            경과 시간 string
         """
         if self.end_time is None:
             return "아직 요리 중입니다."
