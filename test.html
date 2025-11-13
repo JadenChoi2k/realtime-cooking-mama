@@ -137,9 +137,9 @@
               console.log(data);
 
               if (data.type === "system") {
-                if (data.event === "password") {
-                  const password = prompt(data.data);
-                  signalingSocket.send(JSON.stringify({ password }));
+                if (data.event === "api_key") {
+                  const apiKey = prompt("Please enter your OpenAI API Key:");
+                  signalingSocket.send(JSON.stringify({ api_key: apiKey }));
                 } else if (data.event === "error") {
                   alert(data.data);
                 }

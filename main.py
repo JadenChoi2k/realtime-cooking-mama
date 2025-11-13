@@ -39,33 +39,33 @@ async def index():
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket 시그널링 엔드포인트
-    Go의 signalRTCWithWebSocket 완벽 복제
+    클라이언트로부터 OpenAI API Key를 받음
     """
     await websocket.accept()
     
-    # 비밀번호 인증
+    # API 키 요청
     await websocket.send_json({
         "type": "system",
-        "event": "password",
-        "data": "Please enter your password"
+        "event": "api_key",
+        "data": "Please enter your OpenAI API Key"
     })
     
     try:
-        password_req = await websocket.receive_json()
-        password = password_req.get("password")
+        auth_req = await websocket.receive_json()
+        api_key = auth_req.get("api_key")
         
-        if password != os.getenv("PASSWORD"):
-            print("Invalid password")
+        if not api_key or not api_key.startswith("sk-"):
+            print("Invalid API key")
             await websocket.send_json({
                 "type": "system",
                 "event": "error",
-                "data": "Invalid password"
+                "data": "Invalid API key"
             })
             await websocket.close()
             return
         
-        # RTCYoriAssistant 시작
-        assistant = RTCYoriAssistant(websocket, yolo_model)
+        # RTCYoriAssistant 시작 (API 키 전달)
+        assistant = RTCYoriAssistant(websocket, yolo_model, api_key)
         await assistant.start()
         
     except WebSocketDisconnect:

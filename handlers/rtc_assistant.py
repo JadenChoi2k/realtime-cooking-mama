@@ -70,14 +70,16 @@ class RTCYoriAssistant:
     Go의 RTCYoriAssistant 완벽 복제
     """
     
-    def __init__(self, websocket: WebSocket, yolo_model):
+    def __init__(self, websocket: WebSocket, yolo_model, api_key: str):
         """
         Args:
             websocket: FastAPI WebSocket
             yolo_model: YOLO 모델 인스턴스
+            api_key: OpenAI API Key
         """
         self.websocket = websocket
         self.yolo_model = yolo_model
+        self.api_key = api_key
         self.pc: Optional[RTCPeerConnection] = None
         self.pc_connected = False
         self.fridge: Optional[Fridge] = None
@@ -207,12 +209,11 @@ class RTCYoriAssistant:
         GPT Assistant 초기화
         Go의 initGPTAssistant 완벽 복제
         """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("OPENAI_API_KEY is not set")
+        if not self.api_key:
+            print("API key is not provided")
             return
         
-        self.assistant = GPTRealtimeAssistant(api_key)
+        self.assistant = GPTRealtimeAssistant(self.api_key)
         await self.assistant.connect()
         
         print("Assistant initialized")
@@ -268,7 +269,7 @@ class RTCYoriAssistant:
             elif name == "recommend_recipe":
                 fridge_items = await self.fridge.get_items()
                 recommendation = await recommend_recipe(
-                    os.getenv("OPENAI_API_KEY"),
+                    self.api_key,
                     fridge_items,
                     arguments
                 )
