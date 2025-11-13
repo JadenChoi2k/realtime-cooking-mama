@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Realtime Cooking Mama Server Validator
-# 서버 상태를 확인하고 검증합니다
+# Checks and validates server status
 
 set -e
 
@@ -12,90 +12,89 @@ SERVER_URL="http://localhost:5050"
 
 cd "$PROJECT_DIR"
 
-echo "🔍 서버 검증 중..."
+echo "🔍 Validating server..."
 echo ""
 
-# 1. PID 파일 확인
+# 1. Check PID file
 if [ ! -f "$PID_FILE" ]; then
-    echo "❌ 서버가 실행 중이지 않습니다 (PID 파일 없음)"
-    echo "   시작하려면: ./scripts/start-server.sh"
+    echo "❌ Server is not running (PID file not found)"
+    echo "   To start: ./scripts/start-server.sh"
     exit 1
 fi
 
 PID=$(cat "$PID_FILE")
-echo "✅ PID 파일 존재: $PID"
+echo "✅ PID file exists: $PID"
 
-# 2. 프로세스 확인
+# 2. Check process
 if ! ps -p "$PID" > /dev/null 2>&1; then
-    echo "❌ 서버 프로세스가 실행 중이지 않습니다"
+    echo "❌ Server process is not running"
     rm -f "$PID_FILE"
     exit 1
 fi
-echo "✅ 프로세스 실행 중: PID $PID"
+echo "✅ Process running: PID $PID"
 
-# 3. 메모리 사용량 확인
+# 3. Check memory usage
 MEM_INFO=$(ps -o rss= -p "$PID" | awk '{print $1/1024 " MB"}')
-echo "✅ 메모리 사용량: $MEM_INFO"
+echo "✅ Memory usage: $MEM_INFO"
 
-# 4. HTTP 엔드포인트 확인
+# 4. Check HTTP endpoint
 if command -v curl &> /dev/null; then
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SERVER_URL" || echo "000")
     if [ "$HTTP_CODE" == "200" ]; then
-        echo "✅ HTTP 엔드포인트 응답: $SERVER_URL (200 OK)"
+        echo "✅ HTTP endpoint responding: $SERVER_URL (200 OK)"
     else
-        echo "⚠️  HTTP 엔드포인트 응답 코드: $HTTP_CODE"
+        echo "⚠️  HTTP endpoint response code: $HTTP_CODE"
         if [ "$HTTP_CODE" == "000" ]; then
-            echo "   (서버가 아직 시작 중일 수 있습니다)"
+            echo "   (Server may still be starting)"
         fi
     fi
 else
-    echo "⚠️  curl이 설치되지 않아 HTTP 체크를 건너뜁니다"
+    echo "⚠️  curl not installed, skipping HTTP check"
 fi
 
-# 5. 리소스 파일 확인
+# 5. Check resource files
 echo ""
-echo "📁 리소스 파일 확인:"
+echo "📁 Resource files check:"
 RESOURCES_OK=true
 
 if [ -f "$PROJECT_DIR/resources/yori_detector.onnx" ]; then
-    echo "✅ YOLO 모델: resources/yori_detector.onnx"
+    echo "✅ YOLO model: resources/yori_detector.onnx"
 else
-    echo "❌ YOLO 모델 없음: resources/yori_detector.onnx"
+    echo "❌ YOLO model missing: resources/yori_detector.onnx"
     RESOURCES_OK=false
 fi
 
 if [ -f "$PROJECT_DIR/resources/data-names.yaml" ]; then
-    echo "✅ 클래스 이름: resources/data-names.yaml"
+    echo "✅ Class names: resources/data-names.yaml"
 else
-    echo "❌ 클래스 이름 없음: resources/data-names.yaml"
+    echo "❌ Class names missing: resources/data-names.yaml"
     RESOURCES_OK=false
 fi
 
 if [ -f "$PROJECT_DIR/resources/recipe.json" ]; then
-    echo "✅ 레시피 데이터: resources/recipe.json"
+    echo "✅ Recipe data: resources/recipe.json"
 else
-    echo "❌ 레시피 데이터 없음: resources/recipe.json"
+    echo "❌ Recipe data missing: resources/recipe.json"
     RESOURCES_OK=false
 fi
 
-# 6. 가상 환경 확인
+# 6. Check virtual environment
 echo ""
 if [ -d "$PROJECT_DIR/venv" ]; then
-    echo "✅ 가상 환경: venv/"
+    echo "✅ Virtual environment: venv/"
 else
-    echo "⚠️  가상 환경이 없습니다"
+    echo "⚠️  Virtual environment not found"
 fi
 
-# 최종 결과
+# Final result
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ "$RESOURCES_OK" == "true" ]; then
-    echo "✅ 서버가 정상적으로 실행 중입니다!"
+    echo "✅ Server is running normally!"
     echo "   URL: $SERVER_URL"
-    echo "   로그: tail -f $PROJECT_DIR/server.log"
+    echo "   Log: tail -f $PROJECT_DIR/server.log"
 else
-    echo "⚠️  서버는 실행 중이지만 일부 리소스 파일이 없습니다"
-    echo "   객체 감지 및 레시피 기능이 작동하지 않을 수 있습니다"
+    echo "⚠️  Server is running but some resource files are missing"
+    echo "   Object detection and recipe features may not work"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
