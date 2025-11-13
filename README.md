@@ -12,23 +12,56 @@ Go 서버(yori-server)를 Python으로 완벽 이식한 프로젝트입니다.
 
 ## 설치
 
-### 1. 의존성 설치
+### 1. 가상 환경 생성 (권장)
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # Mac/Linux
+# venv\Scripts\activate  # Windows
+```
+
+### 2. 의존성 설치
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 리소스 파일 준비
+### 3. 리소스 파일 준비
 
-`resources/` 디렉토리에 다음 파일들이 필요합니다:
-- `yori_detector.onnx` - YOLO 모델
-- `data-names.yaml` - 클래스 이름
-- `recipe.json` - 레시피 데이터
+**Go 서버의 리소스를 복사해야 합니다:**
+
+```bash
+# yori-server가 ../../../yori-server 경로에 있다고 가정
+mkdir -p resources
+cp ../../../yori-server/resources/yori_detector.onnx resources/
+cp ../../../yori-server/resources/data-names.yaml resources/
+cp ../../../yori-server/resources/recipe.json resources/
+```
+
+필요한 파일:
+- `yori_detector.onnx` - YOLO 객체 감지 모델
+- `data-names.yaml` - 감지 클래스 이름 목록
+- `recipe.json` - 레시피 데이터베이스
 
 **참고**: 이 프로젝트는 `.env` 파일이나 환경 변수 설정이 필요 없습니다! 
 클라이언트에서 직접 OpenAI API 키를 입력받습니다.
 
 ## 실행
+
+### 방법 1: 스크립트 사용 (권장)
+
+```bash
+# 서버 시작
+./scripts/start-server.sh
+
+# 서버 상태 확인
+./scripts/validate-server.sh
+
+# 서버 중지
+./scripts/stop-server.sh
+```
+
+### 방법 2: 직접 실행
 
 ```bash
 python main.py
@@ -48,6 +81,10 @@ realtime-cooking-mama/
 ├── main.py                 # 메인 서버
 ├── requirements.txt        # 의존성
 ├── pytest.ini             # 테스트 설정
+├── scripts/               # 서버 관리 스크립트
+│   ├── start-server.sh    # 서버 시작
+│   ├── stop-server.sh     # 서버 중지
+│   └── validate-server.sh # 서버 상태 검증
 ├── tests/                 # 테스트 코드
 ├── models/                # 데이터 모델
 ├── utils/                 # 유틸리티
