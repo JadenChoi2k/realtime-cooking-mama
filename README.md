@@ -141,7 +141,7 @@ The system implements an intelligent fallback mechanism for object detection:
 2. **Fallback Trigger**: If YOLO returns empty results, GPT-4 Vision API is called
 3. **Throttling**: Minimum 5-second interval between GPT Vision calls to control costs
 4. **Broader Detection**: GPT Vision can detect ingredients not in the YOLO training set
-5. **Cost Optimization**: 
+5. **Cost Optimization**:
    - Images are resized to 512x512 before sending
    - Low detail mode is used for API calls
    - Estimated cost: ~$0.01 per image, max 12 calls/minute with throttling
@@ -210,9 +210,22 @@ The `scripts/` directory contains helpful shell scripts for server management:
 - For production deployment, ensure you use WSS (WebSocket Secure) over HTTPS
 - The client-side approach allows each developer to use their own API key without server configuration
 
+## Model Training
+
+The YOLO object detection model (`yori_detector.onnx`) was trained using:
+
+- Custom collected and labeled ingredient data
+- [COCO dataset](http://cocodataset.org) for base object detection
+  - License: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+  - Citation: Lin, T.-Y., et al. "Microsoft COCO: Common Objects in Context." ECCV 2014.
+
+## Acknowledgments
+
+This project uses the COCO dataset for object detection training. We thank the COCO dataset team for providing this valuable resource.
+
 ## License
 
-Follows project license
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Contributors
 
