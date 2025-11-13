@@ -1,18 +1,18 @@
 # Realtime Cooking Mama (Python)
 
-Go 서버(yori-server)를 Python으로 완벽 이식한 프로젝트입니다.
+A complete Python port of the Go server (yori-server) with 1:1 feature parity.
 
-## 기술 스택
+## Tech Stack
 
-- **FastAPI**: WebSocket + 비동기 처리
-- **aiortc**: WebRTC
-- **Ultralytics YOLO**: 객체 감지
-- **OpenAI Realtime API**: 음성 대화
-- **SQLite**: 데이터베이스 (MongoDB 대체)
+- **FastAPI**: WebSocket + Async processing
+- **aiortc**: WebRTC implementation
+- **Ultralytics YOLO**: Object detection
+- **OpenAI Realtime API**: Voice conversation
+- **SQLite**: Database (replaces MongoDB)
 
-## 설치
+## Installation
 
-### 1. 가상 환경 생성 (권장)
+### 1. Create Virtual Environment (Recommended)
 
 ```bash
 python3 -m venv venv
@@ -20,117 +20,119 @@ source venv/bin/activate  # Mac/Linux
 # venv\Scripts\activate  # Windows
 ```
 
-### 2. 의존성 설치
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 리소스 파일 준비
+### 3. Prepare Resource Files
 
-**Go 서버의 리소스를 복사해야 합니다:**
+**Copy resources from the Go server:**
 
 ```bash
-# yori-server가 ../../../yori-server 경로에 있다고 가정
+# Assuming yori-server is at ../../../yori-server
 mkdir -p resources
 cp ../../../yori-server/resources/yori_detector.onnx resources/
 cp ../../../yori-server/resources/data-names.yaml resources/
 cp ../../../yori-server/resources/recipe.json resources/
 ```
 
-필요한 파일:
-- `yori_detector.onnx` - YOLO 객체 감지 모델
-- `data-names.yaml` - 감지 클래스 이름 목록
-- `recipe.json` - 레시피 데이터베이스
+Required files:
 
-**참고**: 이 프로젝트는 `.env` 파일이나 환경 변수 설정이 필요 없습니다! 
-클라이언트에서 직접 OpenAI API 키를 입력받습니다.
+- `yori_detector.onnx` - YOLO object detection model
+- `data-names.yaml` - Detection class names list
+- `recipe.json` - Recipe database
 
-## 실행
+**Note**: This project does NOT require `.env` files or environment variable setup!
+API keys are entered directly from the client side.
 
-### 방법 1: 스크립트 사용 (권장)
+## Running the Server
+
+### Method 1: Using Scripts (Recommended)
 
 ```bash
-# 서버 시작
+# Start server
 ./scripts/start-server.sh
 
-# 서버 상태 확인
+# Check server status
 ./scripts/validate-server.sh
 
-# 서버 중지
+# Stop server
 ./scripts/stop-server.sh
 ```
 
-### 방법 2: 직접 실행
+### Method 2: Direct Execution
 
 ```bash
 python main.py
 ```
 
-서버가 `http://localhost:5050`에서 실행됩니다.
+The server will run at `http://localhost:5050`.
 
-브라우저에서 `http://localhost:5050`에 접속하면 test.html이 표시됩니다.
+When you visit `http://localhost:5050` in your browser, test.html will be displayed.
 
-**"Start Audio Call" 버튼을 클릭하면 OpenAI API 키를 입력하는 프롬프트가 나타납니다.**
-자신의 API 키(`sk-`로 시작)를 입력하면 실시간 음성 대화가 시작됩니다.
+**Click the "Start Audio Call" button and you'll be prompted to enter your OpenAI API key.**
+Enter your API key (starts with `sk-`) to begin real-time voice conversation.
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 realtime-cooking-mama/
-├── main.py                 # 메인 서버
-├── requirements.txt        # 의존성
-├── pytest.ini             # 테스트 설정
-├── scripts/               # 서버 관리 스크립트
-│   ├── start-server.sh    # 서버 시작
-│   ├── stop-server.sh     # 서버 중지
-│   └── validate-server.sh # 서버 상태 검증
-├── tests/                 # 테스트 코드
-├── models/                # 데이터 모델
-├── utils/                 # 유틸리티
-├── core/                  # 핵심 로직
-├── handlers/              # WebRTC 핸들러
-├── resources/             # 리소스 파일
-└── test.html             # 테스트 클라이언트
+├── main.py                 # Main server
+├── requirements.txt        # Dependencies
+├── pytest.ini             # Test configuration
+├── scripts/               # Server management scripts
+│   ├── start-server.sh    # Start server
+│   ├── stop-server.sh     # Stop server
+│   └── validate-server.sh # Validate server status
+├── tests/                 # Test code
+├── models/                # Data models
+├── utils/                 # Utilities
+├── core/                  # Core logic
+├── handlers/              # WebRTC handlers
+├── resources/             # Resource files
+└── test.html             # Test client
 ```
 
-## 테스트
+## Testing
 
 ```bash
 pytest
 ```
 
-## 주요 기능
+## Key Features
 
-1. **WebRTC 기반 실시간 비디오/오디오 통신**
-2. **YOLO 객체 감지** (식재료 인식)
-3. **OpenAI Realtime API** (음성 대화)
-4. **냉장고 관리**
-5. **레시피 추천 및 단계별 가이드**
-6. **요리 기록 저장**
+1. **WebRTC-based Real-time Video/Audio Communication**
+2. **YOLO Object Detection** (Ingredient recognition)
+3. **OpenAI Realtime API** (Voice conversation)
+4. **Fridge Management**
+5. **Recipe Recommendation and Step-by-step Guidance**
+6. **Cooking History Storage**
 
-## 아키텍처
+## Architecture
 
-### 보안 설계
+### Security Design
 
-이 프로젝트는 **클라이언트 사이드에서 API 키를 입력받는 방식**으로 설계되어:
-- 서버에 API 키를 저장할 필요가 없음
-- 각 사용자가 자신의 API 키 사용
-- `.env` 파일 설정 불필요
-- 로컬 개발/테스트에 최적화
+This project is designed with a **client-side API key input approach**:
 
-### 원본 Go 서버와의 차이점
+- No need to store API keys on the server
+- Each user uses their own API key
+- No `.env` file configuration needed
+- Optimized for local development/testing
 
-| 항목 | Go 서버 | Python 서버 (이 프로젝트) |
-|------|---------|--------------------------|
-| 인증 방식 | 서버의 PASSWORD 환경 변수 | 클라이언트에서 API key 입력 |
-| 객체 감지 | GoCV 또는 외부 서버 | Ultralytics YOLO (내장) |
-| 데이터베이스 | MongoDB | SQLite |
-| API 키 관리 | 서버 환경 변수 | 클라이언트 입력 |
+### Differences from Original Go Server
 
-### WebSocket 프로토콜
+| Feature           | Go Server                        | Python Server (This Project)     |
+| ----------------- | -------------------------------- | -------------------------------- |
+| Authentication    | Server-side PASSWORD env var     | Client-side API key input        |
+| Object Detection  | GoCV or external server          | Ultralytics YOLO (built-in)      |
+| Database          | MongoDB                          | SQLite                           |
+| API Key Management| Server environment variable      | Client input                     |
 
-클라이언트와 서버 간 메시지 형식:
+### WebSocket Protocol
+
+Message format between client and server:
 
 ```json
 {
@@ -140,14 +142,60 @@ pytest
 }
 ```
 
-## 환경 변수 (선택 사항)
+## Environment Variables (Optional)
 
-**필수 환경 변수는 없습니다!** 다음은 선택적으로 사용 가능:
+**No required environment variables!** The following are optional:
 
-- `PROFILE`: 프로파일 (local, production 등) - 기본값: ""
-- `DEBUG_MODE`: 디버그 모드 (true/false) - 기본값: false
+- `PROFILE`: Profile (local, production, etc.) - Default: ""
+- `DEBUG_MODE`: Debug mode (true/false) - Default: false
 
-## 라이센스
+## Development
 
-프로젝트 라이센스에 따름
+This project follows Test-Driven Development (TDD) principles. All core functionality is tested with pytest.
 
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_models.py
+```
+
+### Server Management
+
+The `scripts/` directory contains helpful shell scripts for server management:
+
+- `start-server.sh`: Starts the server in the background and saves the PID
+- `stop-server.sh`: Gracefully stops the running server
+- `validate-server.sh`: Checks server status, memory usage, and resource files
+
+## WebRTC Flow
+
+1. Client connects via WebSocket to `/signal`
+2. Server requests OpenAI API key
+3. Client sends offer (SDP)
+4. Server creates PeerConnection and sends answer
+5. ICE candidates are exchanged
+6. Media tracks (audio/video) are established
+7. Real-time communication begins
+
+## API Key Security
+
+**Important**: This implementation is designed for local development/testing. 
+
+- The API key is transmitted over WebSocket during connection setup
+- For production deployment, ensure you use WSS (WebSocket Secure) over HTTPS
+- The client-side approach allows each developer to use their own API key without server configuration
+
+## License
+
+Follows project license
+
+## Contributors
+
+Developed as a complete port from the Go-based yori-server to Python, maintaining full feature compatibility with test.html client.
