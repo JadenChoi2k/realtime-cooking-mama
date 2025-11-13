@@ -58,3 +58,7 @@ Thumbs.db
 
 # Resources (copy from yori-server)
 resources/
+
+# Server PID file
+.server.pid
+server.log

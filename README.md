@@ -123,12 +123,12 @@ This project is designed with a **client-side API key input approach**:
 
 ### Differences from Original Go Server
 
-| Feature           | Go Server                        | Python Server (This Project)     |
-| ----------------- | -------------------------------- | -------------------------------- |
-| Authentication    | Server-side PASSWORD env var     | Client-side API key input        |
-| Object Detection  | GoCV or external server          | Ultralytics YOLO (built-in)      |
-| Database          | MongoDB                          | SQLite                           |
-| API Key Management| Server environment variable      | Client input                     |
+| Feature            | Go Server                    | Python Server (This Project) |
+| ------------------ | ---------------------------- | ---------------------------- |
+| Authentication     | Server-side PASSWORD env var | Client-side API key input    |
+| Object Detection   | GoCV or external server      | Ultralytics YOLO (built-in)  |
+| Database           | MongoDB                      | SQLite                       |
+| API Key Management | Server environment variable  | Client input                 |
 
 ### WebSocket Protocol
 
@@ -186,7 +186,7 @@ The `scripts/` directory contains helpful shell scripts for server management:
 
 ## API Key Security
 
-**Important**: This implementation is designed for local development/testing. 
+**Important**: This implementation is designed for local development/testing.
 
 - The API key is transmitted over WebSocket during connection setup
 - For production deployment, ensure you use WSS (WebSocket Secure) over HTTPS
