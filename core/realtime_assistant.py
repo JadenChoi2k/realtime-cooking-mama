@@ -426,6 +426,10 @@ class GPTRealtimeAssistant:
             print("assistant is responding, skipping function call")
             return
         
+        if self.status != RealtimeAssistantStatus.CONNECTED or not self.ws:
+            print("assistant websocket is not ready, skipping function call")
+            return
+        
         message_data = {
             "type": "conversation.item.create",
             "item": {

@@ -26,15 +26,7 @@ from core.openai_assistant import recommend_recipe
 from models.events import YoriWebEvent
 from models.cooking import Cooking
 from utils.text_utils import get_random_string
-from utils.audio_utils import (
-    OpusHandler,
-    bytes_to_int16_list,
-    int16_list_to_bytes,
-    resample_pcm,
-    pcm16_with_single_channel,
-    pcm16_with_multiple_channels,
-    convert_pcm_48k_stereo_to_24k_mono
-)
+from utils.audio_utils import convert_pcm_48k_stereo_to_24k_mono
 
 
 class AudioStreamTrack(MediaStreamTrack):
@@ -488,7 +480,6 @@ class RTCYoriAssistant:
         Go의 168-216번 라인 로직
         """
         audio_channel = await self.assistant.get_audio_response_channel()
-        opus_handler = OpusHandler(48000, 2)
         
         while self.assistant and self.assistant.is_alive():
             try:
@@ -498,12 +489,9 @@ class RTCYoriAssistant:
                     print("Audio channel closed, stopping audio processing")
                     break
                 
-                # PCM16 → Opus Convert (24kHz 1ch → 48kHz 2ch)
-                opus_data = opus_handler.convert_pcm16_to_opus(audio, 24000, 1)
-                
-                # 전송
-                for opus_packet in opus_data:
-                    await self.audio_track.add_audio(opus_packet)
+                # WebRTC AudioStreamTrack은 PCM 데이터를 그대로 전송하면
+                # 내부적으로 Opus로 인코딩됨
+                await self.audio_track.add_audio(audio)
                 
             except Exception as e:
                 print(f"Audio sender loop error: {e}")
