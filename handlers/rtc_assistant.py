@@ -26,7 +26,16 @@ from core.openai_assistant import recommend_recipe
 from models.events import YoriWebEvent
 from models.cooking import Cooking
 from utils.text_utils import get_random_string
-from utils.audio_utils import convert_pcm_48k_stereo_to_24k_mono
+from utils.audio_utils import (
+    bytes_to_int16_list,
+    int16_list_to_bytes,
+    resample_pcm,
+    pcm16_with_multiple_channels,
+    convert_pcm_48k_stereo_to_24k_mono
+)
+from utils.audio_logger import AudioLogger
+from fractions import Fraction
+import math
 
 
 class AudioStreamTrack(MediaStreamTrack):
@@ -38,19 +47,26 @@ class AudioStreamTrack(MediaStreamTrack):
     def __init__(self):
         super().__init__()
         self.queue = asyncio.Queue()
+        self.sample_rate = 48000
+        self.channels = 2
+        self._timestamp = 0
     
     async def recv(self):
         """오디오 프레임 Returns"""
         audio_data = await self.queue.get()
         
-        # PCM16 데이터를 AudioFrame으로 Convert
-        frame = av.AudioFrame.from_ndarray(
-            np.frombuffer(audio_data, dtype=np.int16).reshape(1, -1),
-            format='s16',
-            layout='mono'
-        )
-        frame.sample_rate = 24000
-        frame.pts = int(time.time() * 24000)
+        # PCM16 데이터를 AudioFrame으로 Convert (48kHz, 2ch)
+        samples = np.frombuffer(audio_data, dtype=np.int16)
+        if samples.size == 0:
+            return await self.recv()
+        if samples.size % self.channels != 0:
+            samples = samples[: samples.size - (samples.size % self.channels)]
+        planar = samples.reshape(-1, self.channels).T.copy()
+        frame = av.AudioFrame.from_ndarray(planar, format='s16', layout='stereo')
+        frame.sample_rate = self.sample_rate
+        frame.time_base = Fraction(1, self.sample_rate)
+        frame.pts = self._timestamp
+        self._timestamp += frame.samples
         
         return frame
     
@@ -87,6 +103,11 @@ class RTCYoriAssistant:
         self.detection_lock = asyncio.Lock()
         self.first_object_detected = False
         self.audio_track: Optional[AudioStreamTrack] = None
+        self.session_id = get_random_string(12)
+        audio_logging_enabled = os.getenv("AUDIO_LOGGING", "true").lower() in ("1", "true", "yes", "on")
+        self.audio_logger = AudioLogger(enabled=audio_logging_enabled)
+        if not self.audio_logger.is_enabled:
+            print("Audio logging disabled via AUDIO_LOGGING flag")
     
     async def start(self):
         """
@@ -480,22 +501,100 @@ class RTCYoriAssistant:
         Go의 168-216번 라인 로직
         """
         audio_channel = await self.assistant.get_audio_response_channel()
+        samples_per_frame = (self.audio_track.sample_rate // 1000) * 20  # 20ms frame
+        bytes_per_frame = samples_per_frame * self.audio_track.channels * 2
+        pcm_buffer = bytearray()
+        chunk_counter = 0
+        frame_counter = 0
+        self.audio_logger.ensure_wav(self.session_id, "outbound", self.audio_track.sample_rate, self.audio_track.channels)
+        self.audio_logger.ensure_wav(self.session_id, "outbound_frame", self.audio_track.sample_rate, self.audio_track.channels)
+        self.audio_logger.log_note(
+            self.session_id,
+            "outbound",
+            "audio sender loop started; waiting for GPT audio",
+            sample_rate=self.audio_track.sample_rate,
+            channels=self.audio_track.channels,
+        )
         
         while self.assistant and self.assistant.is_alive():
             try:
                 # PCM16 오디오 수신 (24kHz, 1ch)
-                audio = await audio_channel.get()
+                try:
+                    audio = await asyncio.wait_for(audio_channel.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    self.audio_logger.log_note(
+                        self.session_id,
+                        "outbound",
+                        "waiting for GPT audio (no data for 5s)",
+                        sample_rate=self.audio_track.sample_rate,
+                        channels=self.audio_track.channels,
+                    )
+                    continue
+                
                 if audio is None:
                     print("Audio channel closed, stopping audio processing")
+                    self.audio_logger.log_note(
+                        self.session_id,
+                        "outbound",
+                        "audio channel returned None; stopping sender loop",
+                        sample_rate=self.audio_track.sample_rate,
+                        channels=self.audio_track.channels,
+                    )
                     break
                 
-                # WebRTC AudioStreamTrack은 PCM 데이터를 그대로 전송하면
-                # 내부적으로 Opus로 인코딩됨
-                await self.audio_track.add_audio(audio)
+                # 24kHz 1ch -> 48kHz 2ch 변환 (Go 버전과 동일)
+                pcm_list = bytes_to_int16_list(audio)
+                pcm_list = resample_pcm(pcm_list, 24000, 48000)
+                pcm_list = pcm16_with_multiple_channels(pcm_list, 1, 2)
+                converted_audio = int16_list_to_bytes(pcm_list)
+                chunk_counter += 1
+                buffer_after_append = len(pcm_buffer) + len(converted_audio)
+                samples_count = len(converted_audio) // (2 * self.audio_track.channels)
+                self.audio_logger.log_outbound_chunk(
+                    self.session_id,
+                    f"pcm_{chunk_counter}",
+                    converted_audio,
+                    sample_rate=self.audio_track.sample_rate,
+                    channels=self.audio_track.channels,
+                    note=f"samples={samples_count} buffer_before={len(pcm_buffer)} buffer_after={buffer_after_append}",
+                )
+                
+                pcm_buffer.extend(converted_audio)
+                
+                while len(pcm_buffer) >= bytes_per_frame:
+                    chunk = bytes(pcm_buffer[:bytes_per_frame])
+                    pcm_buffer = pcm_buffer[bytes_per_frame:]
+                    await self.audio_track.add_audio(chunk)
+                    frame_counter += 1
+                    queue_size = self.audio_track.queue.qsize()
+                    self.audio_logger.log_outbound_frame(
+                        self.session_id,
+                        f"frame_{frame_counter}",
+                        chunk,
+                        sample_rate=self.audio_track.sample_rate,
+                        channels=self.audio_track.channels,
+                        note=f"frame_samples={samples_per_frame} remaining_buffer={len(pcm_buffer)} queue_size={queue_size}",
+                    )
+                    await asyncio.sleep(samples_per_frame / self.audio_track.sample_rate)
                 
             except Exception as e:
                 print(f"Audio sender loop error: {e}")
+                self.audio_logger.log_note(
+                    self.session_id,
+                    "outbound",
+                    f"audio sender loop error: {e}",
+                    sample_rate=self.audio_track.sample_rate,
+                    channels=self.audio_track.channels,
+                )
                 break
+        
+        self.audio_logger.log_note(
+            self.session_id,
+            "outbound",
+            "audio sender loop finished",
+            sample_rate=self.audio_track.sample_rate,
+            channels=self.audio_track.channels,
+        )
     
     async def _event_sender_loop(self):
         """
@@ -532,6 +631,7 @@ class RTCYoriAssistant:
         
         audio_buffer = bytearray()
         chunk_size = 0x8000
+        inbound_counter = 0
         
         while True:
             try:
@@ -549,6 +649,15 @@ class RTCYoriAssistant:
                 pcm16 = convert_pcm_48k_stereo_to_24k_mono(audio_bytes)
                 
                 audio_buffer.extend(pcm16)
+                inbound_counter += 1
+                self.audio_logger.log_inbound_chunk(
+                    self.session_id,
+                    f"chunk_{inbound_counter}",
+                    pcm16,
+                    sample_rate=24000,
+                    channels=1,
+                    note=f"buffer_len={len(audio_buffer)}",
+                )
                 
                 # 청크 단위로 전송
                 if len(audio_buffer) >= chunk_size:
@@ -557,6 +666,13 @@ class RTCYoriAssistant:
                     
                     # 감지 여부와 상관없이 음성 전송
                     await self.assistant.send_audio(chunk)
+                    self.audio_logger.log_note(
+                        self.session_id,
+                        "inbound",
+                        f"sent_chunk size={len(chunk)} remaining_buffer={len(audio_buffer)}",
+                        sample_rate=24000,
+                        channels=1,
+                    )
             
             except Exception as e:
                 print(f"Audio track error: {e}")
@@ -807,6 +923,8 @@ class RTCYoriAssistant:
             await self.pc.close()
         if self.yori_db:
             await self.yori_db.close()
+        if self.audio_logger and self.session_id:
+            self.audio_logger.close_session(self.session_id)
 
 
 from datetime import datetime

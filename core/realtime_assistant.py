@@ -225,9 +225,12 @@ class GPTRealtimeAssistant:
             self.wait_for_sending_audio = False
             self.audio_closing = True
             
-            # Recreate audio channel
-            old_channel = self.audio_channel
-            self.audio_channel = asyncio.Queue()
+            # Clear pending audio without replacing queue (keeps readers attached like Go version)
+            while not self.audio_channel.empty():
+                try:
+                    self.audio_channel.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
             self.audio_closing = False
         
         elif message_type == "response.output_item.done":

@@ -172,6 +172,7 @@ Message format between client and server:
 
 - `PROFILE`: Profile (local, production, etc.) - Default: ""
 - `DEBUG_MODE`: Debug mode (true/false) - Default: false
+- `AUDIO_LOGGING`: Set to `false`/`0` to disable audio chunk/WAV logging (default `true`)
 
 ## Development
 

@@ -7,7 +7,7 @@ from typing import List
 import opuslib
 
 
-def bytes_to_int16_list(b: bytes) -> List[int]:
+def bytes_to_int16_list(b: bytes, signed: bool = True) -> List[int]:
     """
     Convert byte array to int16 list
     Same as Go's BytesToInt16Slice function
@@ -22,15 +22,17 @@ def bytes_to_int16_list(b: bytes) -> List[int]:
     for i in range(0, len(b), 2):
         if i + 1 < len(b):
             # Little-endian: lower byte | (upper byte << 8)
-            value = b[i] | (b[i + 1] << 8)
-            # Convert to signed int16
-            if value >= 32768:
-                value -= 65536
+            if signed:
+                value = b[i] | (b[i + 1] << 8)
+                if value >= 32768:
+                    value -= 65536
+            else:
+                value = ((b[i + 1] << 8) | b[i])
             pcm.append(value)
     return pcm
 
 
-def int16_list_to_bytes(pcm: List[int]) -> bytes:
+def int16_list_to_bytes(pcm: List[int], signed: bool = True) -> bytes:
     """
     int16 list를 byte array로 Convert
     Same as Go's Int16ToBytes function
@@ -43,9 +45,9 @@ def int16_list_to_bytes(pcm: List[int]) -> bytes:
     """
     b = bytearray(len(pcm) * 2)
     for i, value in enumerate(pcm):
-        # Convert signed int16 to unsigned
-        if value < 0:
-            value += 65536
+        if signed:
+            if value < 0:
+                value += 65536
         # Little-endian
         b[i * 2] = value & 0xFF
         b[i * 2 + 1] = (value >> 8) & 0xFF
@@ -176,64 +178,50 @@ class OpusHandler:
         self.channels = channels
         self.decoder = opuslib.Decoder(sample_rate, channels)
         self.encoder = opuslib.Encoder(sample_rate, channels, opuslib.APPLICATION_AUDIO)
+        self.frame_size = (self.sample_rate // 1000) * 20
     
-    def decode(self, opus_data: bytes) -> bytes:
+    def convert_opus_to_pcm16(self, opus_data: bytes) -> bytes:
         """
-        Opus 데이터를 PCM16으로 Decode
-        
-        Args:
-            opus_data: Opus Encode된 데이터
-        
-        Returns:
-            PCM16 바이트 데이터
+        Decode Opus packet to PCM16 bytes (no resample)
         """
-        # 20ms Calculate frame size
-        frame_size = (self.sample_rate // 1000) * 20
-        pcm_data = self.decoder.decode(opus_data, frame_size)
+        pcm_data = self.decoder.decode(opus_data, self.frame_size)
         return bytes(pcm_data)
-    
-    def encode(self, pcm_data: bytes) -> bytes:
-        """
-        PCM16 데이터를 Opus로 Encode
-        
-        Args:
-            pcm_data: PCM16 바이트 데이터
-        
-        Returns:
-            Opus Encode된 데이터
-        """
-        # 20ms Calculate frame size
-        frame_size = (self.sample_rate // 1000) * 20
-        opus_data = self.encoder.encode(pcm_data, frame_size)
-        return bytes(opus_data)
     
     def convert_opus_to_pcm16_2(self, opus_data: bytes) -> bytes:
         """
-        Opus 데이터를 PCM16으로 변환하고 resampling + channel conversion 수행
-        48kHz 2ch -> 24kHz 1ch
-        
-        Args:
-            opus_data: Opus Encode된 데이터
-        
-        Returns:
-            변환된 PCM16 바이트 데이터 (24kHz, mono)
+        Opus -> PCM16 (resample + channel conversion)
         """
-        # 1. Opus decode (48kHz 2ch)
-        pcm_bytes = self.decode(opus_data)
-        
-        # 2. bytes -> int16 list
+        pcm_bytes = self.convert_opus_to_pcm16(opus_data)
         pcm_list = bytes_to_int16_list(pcm_bytes)
-        
-        # 3. 48kHz -> 24kHz resample (BEFORE channel conversion)
-        if self.sample_rate == 48000:
-            pcm_list = resample_pcm(pcm_list, 48000, 24000)
-        
-        # 4. 2ch -> 1ch (extract left channel AFTER resampling)
-        if self.channels == 2:
+        if self.sample_rate != 24000:
+            pcm_list = resample_pcm(pcm_list, self.sample_rate, 24000)
+        if self.channels != 1:
             pcm_list = pcm16_with_single_channel(pcm_list)
-        
-        # 5. int16 list -> bytes
         return int16_list_to_bytes(pcm_list)
+    
+    def convert_pcm16_to_opus(self, pcm_data: bytes, pcm_sample_rate: int, pcm_channels: int) -> List[bytes]:
+        """
+        PCM16 -> Opus (handle resample + channel conversion)
+        """
+        opus_frames: List[bytes] = []
+        pcm_samples = bytes_to_int16_list(pcm_data)
+        pcm_frame_size = (pcm_sample_rate // 1000) * 20 * pcm_channels
+        opus_frame_size = self.frame_size * self.channels
+        
+        for i in range(0, len(pcm_samples), pcm_frame_size):
+            frame = pcm_samples[i:i + pcm_frame_size]
+            if len(frame) < pcm_frame_size:
+                frame = frame + [0] * (pcm_frame_size - len(frame))
+            
+            if pcm_sample_rate != self.sample_rate:
+                frame = resample_pcm(frame, pcm_sample_rate, self.sample_rate)
+            
+            frame = pcm16_with_multiple_channels(frame, pcm_channels, self.channels)
+            frame_bytes = int16_list_to_bytes(frame)
+            opus_data = self.encoder.encode(frame_bytes, self.frame_size)
+            opus_frames.append(bytes(opus_data))
+        
+        return opus_frames
 
 
 def convert_pcm_48k_stereo_to_24k_mono(pcm_bytes: bytes) -> bytes:

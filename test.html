@@ -92,10 +92,10 @@
     <h3 id="user_message"></h3>
     <h3 id="message"></h3>
     <div id="connection_status" style="padding: 10px; margin: 10px 0; border-radius: 5px; display: none;">
-      <strong>연결 상태:</strong> <span id="status_text"></span>
+      <strong>Connection Status:</strong> <span id="status_text"></span>
     </div>
     <div id="error_message" style="padding: 10px; margin: 10px 0; background-color: #ffebee; color: #c62828; border-radius: 5px; display: none;">
-      <strong>오류:</strong> <span id="error_text"></span>
+      <strong>Error:</strong> <span id="error_text"></span>
     </div>
     <button id="start">Start Audio Call</button>
     <button id="closeConnection">Close Connection</button>
@@ -118,7 +118,35 @@
       const remoteVideo = document.getElementById("remoteVideo");
       let lastDetectionTime = null;
 
-      // 연결 상태 표시 함수
+      function logRemoteAudioStatus(label) {
+        if (!remoteVideo.srcObject) {
+          console.log(`[RemoteAudio][${label}] no srcObject`);
+          return;
+        }
+        const audioTracks = remoteVideo.srcObject
+          .getAudioTracks()
+          .map((track) => ({
+            id: track.id,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            label: track.label,
+          }));
+        console.log(
+          `[RemoteAudio][${label}] paused=${remoteVideo.paused} muted=${remoteVideo.muted} volume=${remoteVideo.volume} tracks=${JSON.stringify(
+            audioTracks
+          )}`
+        );
+      }
+
+      remoteVideo.addEventListener("playing", () =>
+        logRemoteAudioStatus("playing")
+      );
+      remoteVideo.addEventListener("pause", () =>
+        logRemoteAudioStatus("pause")
+      );
+
+      // Connection status display function
       function showConnectionStatus(message, isError = false) {
         const statusDiv = document.getElementById("connection_status");
         const statusText = document.getElementById("status_text");
@@ -134,17 +162,17 @@
         }
       }
 
-      // 에러 메시지 표시 함수
+      // Error message display function
       function showError(message) {
         console.error("Error:", message);
         const errorDiv = document.getElementById("error_message");
         const errorText = document.getElementById("error_text");
         errorDiv.style.display = "block";
         errorText.innerText = message;
-        alert("오류: " + message);
+        alert("Error: " + message);
       }
 
-      // 에러 메시지 숨기기 함수
+      // Hide error message function
       function hideError() {
         document.getElementById("error_message").style.display = "none";
       }
@@ -152,7 +180,7 @@
       document.getElementById("start").onclick = async () => {
         try {
           hideError();
-          showConnectionStatus("WebSocket 연결 중...");
+          showConnectionStatus("WebSocket connecting...");
           
           // Close existing connections if any
           if (localConnection) {
@@ -172,18 +200,18 @@
           
           signalingSocket.onerror = (error) => {
             console.error("WebSocket error:", error);
-            showConnectionStatus("WebSocket 연결 실패", true);
-            showError("서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.");
+            showConnectionStatus("WebSocket connection failed", true);
+            showError("Unable to reach the server. Please ensure it is running.");
           };
           
           signalingSocket.onclose = () => {
             console.log("WebSocket closed");
-            showConnectionStatus("연결 종료됨", true);
+            showConnectionStatus("Connection closed", true);
           };
           
           signalingSocket.onopen = () => {
             console.log("WebSocket connected");
-            showConnectionStatus("WebSocket 연결됨");
+            showConnectionStatus("WebSocket connected");
           };
 
           // Set up WebSocket message handler
@@ -194,27 +222,27 @@
 
               if (data.type === "system") {
                 if (data.event === "api_key") {
-                  showConnectionStatus("API 키 입력 대기 중...");
+                  showConnectionStatus("Waiting for API key input...");
                   const apiKey = prompt("Please enter your OpenAI API Key:");
                   if (apiKey) {
-                    showConnectionStatus("API 키 전송 중...");
+                    showConnectionStatus("Sending API key...");
                     signalingSocket.send(JSON.stringify({ api_key: apiKey }));
                   } else {
-                    showConnectionStatus("API 키가 입력되지 않음", true);
+                    showConnectionStatus("API key not provided", true);
                   }
                 } else if (data.event === "error") {
-                  showConnectionStatus("오류 발생", true);
+                  showConnectionStatus("Error occurred", true);
                   showError(data.data);
                 } else if (data.event === "assistant_initialized") {
-                  showConnectionStatus("음성 에이전트 초기화 완료 ✓");
+                  showConnectionStatus("Voice agent initialized ✓");
                   console.log("Assistant initialized successfully");
                 } else if (data.event === "assistant_error") {
-                  showConnectionStatus("음성 에이전트 초기화 실패", true);
-                  showError("음성 에이전트 초기화 실패: " + data.data);
+                  showConnectionStatus("Voice agent initialization failed", true);
+                  showError("Voice agent initialization failed: " + data.data);
                 } else if (data.event === "connected") {
-                  showConnectionStatus("서버 연결됨");
+                  showConnectionStatus("Server connected");
                 } else if (data.event === "yoribo_ready") {
-                  showConnectionStatus("요리보 준비 완료 ✓");
+                  showConnectionStatus("Yoribo ready ✓");
                 }
               }
 
@@ -333,16 +361,16 @@
             console.log("P2P Connection state:", state);
             
             if (state === "connected") {
-              showConnectionStatus("P2P 연결 완료 ✓");
+              showConnectionStatus("P2P connected ✓");
             } else if (state === "connecting") {
-              showConnectionStatus("P2P 연결 중...");
+              showConnectionStatus("P2P connecting...");
             } else if (state === "failed") {
-              showConnectionStatus("P2P 연결 실패", true);
-              showError("P2P 연결에 실패했습니다. 네트워크 설정을 확인해주세요.");
+              showConnectionStatus("P2P connection failed", true);
+              showError("P2P connection failed. Please check network settings.");
             } else if (state === "disconnected") {
-              showConnectionStatus("P2P 연결 끊김", true);
+              showConnectionStatus("P2P disconnected", true);
             } else if (state === "closed") {
-              showConnectionStatus("P2P 연결 종료");
+              showConnectionStatus("P2P connection closed");
             }
           };
 
@@ -356,6 +384,15 @@
               remoteStream.addTrack(event.track);
             }
             remoteVideo.srcObject = remoteStream;
+            remoteVideo.muted = false;
+            remoteVideo.volume = 1;
+            remoteVideo
+              .play()
+              .then(() => logRemoteAudioStatus("play promise resolved"))
+              .catch((err) =>
+                console.error("remoteVideo play() failed:", err)
+              );
+            logRemoteAudioStatus("ontrack");
           };
 
           // Create and send offer
