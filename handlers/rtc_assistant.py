@@ -213,24 +213,46 @@ class RTCYoriAssistant:
         Complete port of Go's initGPTAssistant
         """
         if not self.api_key:
-            print("API key is not provided")
+            error_msg = "API key is not provided"
+            print(error_msg)
+            await self._write_json({
+                "type": "system",
+                "event": "assistant_error",
+                "data": error_msg
+            })
             return
         
-        self.assistant = GPTRealtimeAssistant(self.api_key)
-        await self.assistant.connect()
-        
-        print("Assistant initialized")
-        await self._write_json({
-            "type": "system",
-            "event": "assistant_initialized",
-            "data": "assistant initialized"
-        })
-        
-        # 함수 호출 핸들러 등록
-        async def on_function_call(call_id: str, name: str, arguments: str) -> tuple[str, Optional[Exception]]:
-            return await self._handle_function_call(call_id, name, arguments)
-        
-        self.assistant.on_function_call = on_function_call
+        try:
+            print(f"Initializing GPT Realtime Assistant with API key: {self.api_key[:10]}...")
+            self.assistant = GPTRealtimeAssistant(self.api_key)
+            await self.assistant.connect()
+            
+            print("Assistant initialized successfully")
+            await self._write_json({
+                "type": "system",
+                "event": "assistant_initialized",
+                "data": "assistant initialized"
+            })
+            
+            # 함수 호출 핸들러 등록
+            async def on_function_call(call_id: str, name: str, arguments: str) -> tuple[str, Optional[Exception]]:
+                return await self._handle_function_call(call_id, name, arguments)
+            
+            self.assistant.on_function_call = on_function_call
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Failed to initialize assistant: {error_msg}")
+            
+            # 클라이언트에게 에러 메시지 전송
+            await self._write_json({
+                "type": "system",
+                "event": "assistant_error",
+                "data": error_msg
+            })
+            
+            # assistant를 None으로 설정하여 이후 코드에서 처리
+            self.assistant = None
     
     async def _handle_function_call(self, call_id: str, name: str, arguments: str) -> tuple[str, Optional[Exception]]:
         """
@@ -545,9 +567,8 @@ class RTCYoriAssistant:
                     chunk = bytes(audio_buffer[:chunk_size])
                     audio_buffer = audio_buffer[chunk_size:]
                     
-                    # first_object_detected일 때만 전송
-                    if self.first_object_detected:
-                        await self.assistant.send_audio(chunk)
+                    # 감지 여부와 상관없이 음성 전송
+                    await self.assistant.send_audio(chunk)
             
             except Exception as e:
                 print(f"Audio track error: {e}")

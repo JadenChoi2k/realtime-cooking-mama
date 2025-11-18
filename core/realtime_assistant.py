@@ -62,17 +62,76 @@ class GPTRealtimeAssistant:
             "OpenAI-Beta": "realtime=v1"
         }
         
-        # Use additional_headers instead of extra_headers for uvloop compatibility
-        self.ws = await websockets.connect(url, additional_headers=headers)
+        try:
+            print(f"Attempting to connect to OpenAI Realtime API...")
+            
+            # Use additional_headers instead of extra_headers for uvloop compatibility
+            self.ws = await asyncio.wait_for(
+                websockets.connect(url, additional_headers=headers),
+                timeout=10.0
+            )
+            
+            print("WebSocket connection established, waiting for session.created...")
+            
+            # Receive first message (session.created)
+            first_msg = await asyncio.wait_for(self.ws.recv(), timeout=10.0)
+            first_message = json.loads(first_msg)
+            
+            # Check if first message is an error
+            if first_message.get("type") == "error":
+                error_info = first_message.get("error", {})
+                error_type = error_info.get("type", "unknown")
+                error_message = error_info.get("message", "Unknown error")
+                
+                self.status = RealtimeAssistantStatus.ERROR
+                
+                if error_type == "invalid_api_key" or "authentication" in error_message.lower():
+                    raise Exception(f"API 키가 유효하지 않거나 Realtime API 접근 권한이 없습니다: {error_message}")
+                elif error_type == "permission_denied":
+                    raise Exception(f"Realtime API 접근이 거부되었습니다. API 키 권한을 확인해주세요: {error_message}")
+                else:
+                    raise Exception(f"OpenAI Realtime API 에러 ({error_type}): {error_message}")
+            
+            print(f"Received session.created: {first_message.get('type')}")
+            
+            # Start receive loop
+            self._receive_task = asyncio.create_task(self._receive_loop())
+            
+            # Initialize session
+            print("Initializing session...")
+            await self._init_session()
+            print("Session initialized successfully")
+            
+        except asyncio.TimeoutError:
+            self.status = RealtimeAssistantStatus.ERROR
+            error_msg = "OpenAI 서버 연결 시간이 초과되었습니다. 네트워크 연결을 확인해주세요."
+            print(f"Connection timeout: {error_msg}")
+            raise Exception(error_msg)
         
-        # Receive first message (session.created)
-        _ = await self.ws.recv()
+        except websockets.exceptions.InvalidStatusCode as e:
+            self.status = RealtimeAssistantStatus.ERROR
+            if e.status_code == 401:
+                error_msg = "API 키가 유효하지 않습니다. OpenAI API 키를 확인해주세요."
+            elif e.status_code == 403:
+                error_msg = "Realtime API 접근이 거부되었습니다. 계정에 Realtime API 접근 권한이 있는지 확인해주세요."
+            elif e.status_code == 429:
+                error_msg = "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+            else:
+                error_msg = f"서버 응답 에러 (상태 코드: {e.status_code})"
+            print(f"Connection failed: {error_msg}")
+            raise Exception(error_msg)
         
-        # Start receive loop
-        self._receive_task = asyncio.create_task(self._receive_loop())
+        except websockets.exceptions.WebSocketException as e:
+            self.status = RealtimeAssistantStatus.ERROR
+            error_msg = f"WebSocket 연결 실패: {str(e)}"
+            print(f"WebSocket error: {error_msg}")
+            raise Exception(error_msg)
         
-        # Initialize session
-        await self._init_session()
+        except Exception as e:
+            self.status = RealtimeAssistantStatus.ERROR
+            error_msg = f"OpenAI Realtime API 연결 실패: {str(e)}"
+            print(f"Connection error: {error_msg}")
+            raise
     
     async def _receive_loop(self):
         """
