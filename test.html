@@ -19,6 +19,10 @@
     <h2>RTC + Realtime API Test</h2>
     <video id="localVideo" autoplay playsinline muted></video>
     <video id="remoteVideo" autoplay playsinline></video>
+    <div id="remote_audio_panel" style="overflow-y: auto; max-height: 140px; margin-top: 12px;">
+      <h5>Remote Audio Stats</h5>
+      <pre id="remote_audio_stats" style="background:#f5f5f5;padding:8px;border-radius:4px;">(waiting)</pre>
+    </div>
     <div style="overflow-y: auto; height: 100px">
       <h5 id="detection_description">Detections</h5>
       <div id="detection"></div>
@@ -117,6 +121,7 @@
       const localVideo = document.getElementById("localVideo");
       const remoteVideo = document.getElementById("remoteVideo");
       let lastDetectionTime = null;
+      let statsInterval = null;
 
       function logRemoteAudioStatus(label) {
         if (!remoteVideo.srcObject) {
@@ -145,6 +150,57 @@
       remoteVideo.addEventListener("pause", () =>
         logRemoteAudioStatus("pause")
       );
+
+      async function collectAudioStats() {
+        if (!localConnection) {
+          return;
+        }
+        try {
+          const stats = await localConnection.getStats(null);
+          const lines = [];
+          stats.forEach((report) => {
+            if (
+              report.type === "inbound-rtp" &&
+              (report.kind === "audio" || report.mediaType === "audio")
+            ) {
+              const jitterValue =
+                typeof report.jitter === "number"
+                  ? report.jitter.toFixed(5)
+                  : report.jitter;
+              lines.push(
+                `inbound audio: packets=${report.packetsReceived} lost=${report.packetsLost} jitter=${jitterValue} bytes=${report.bytesReceived}`
+              );
+            }
+            if (report.type === "track" && report.kind === "audio") {
+              lines.push(
+                `track audio: framesDecoded=${report.framesDecoded} totalEnergy=${report.totalAudioEnergy}`
+              );
+            }
+          });
+          if (lines.length === 0) {
+            lines.push("no inbound audio stats yet");
+          }
+          document.getElementById("remote_audio_stats").innerText =
+            lines.join("\n");
+        } catch (err) {
+          console.error("collectAudioStats error", err);
+        }
+      }
+
+      function startStatsMonitor() {
+        if (statsInterval) {
+          return;
+        }
+        statsInterval = setInterval(collectAudioStats, 2000);
+      }
+
+      function stopStatsMonitor() {
+        if (statsInterval) {
+          clearInterval(statsInterval);
+          statsInterval = null;
+          document.getElementById("remote_audio_stats").innerText = "(stopped)";
+        }
+      }
 
       // Connection status display function
       function showConnectionStatus(message, isError = false) {
@@ -207,6 +263,7 @@
           signalingSocket.onclose = () => {
             console.log("WebSocket closed");
             showConnectionStatus("Connection closed", true);
+            stopStatsMonitor();
           };
           
           signalingSocket.onopen = () => {
@@ -362,15 +419,19 @@
             
             if (state === "connected") {
               showConnectionStatus("P2P connected ✓");
+              startStatsMonitor();
             } else if (state === "connecting") {
               showConnectionStatus("P2P connecting...");
             } else if (state === "failed") {
               showConnectionStatus("P2P connection failed", true);
               showError("P2P connection failed. Please check network settings.");
+              stopStatsMonitor();
             } else if (state === "disconnected") {
               showConnectionStatus("P2P disconnected", true);
+              stopStatsMonitor();
             } else if (state === "closed") {
               showConnectionStatus("P2P connection closed");
+              stopStatsMonitor();
             }
           };
 
@@ -393,6 +454,7 @@
                 console.error("remoteVideo play() failed:", err)
               );
             logRemoteAudioStatus("ontrack");
+            startStatsMonitor();
           };
 
           // Create and send offer
@@ -457,8 +519,10 @@
         }
         if (signalingSocket) {
           signalingSocket.close();
+          signalingSocket = null;
           console.log("WebSocket connection closed.");
         }
+        stopStatsMonitor();
       };
 
       function drawFridgeItems(items) {

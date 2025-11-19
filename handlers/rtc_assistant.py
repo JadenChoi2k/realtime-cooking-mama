@@ -8,11 +8,11 @@ import os
 import time
 from typing import Optional, List, Dict, Any
 from fastapi import WebSocket
+from starlette.websockets import WebSocketState
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, MediaStreamTrack
 from aiortc.sdp import candidate_from_sdp
-from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
 import av
-import numpy as np
+from av.packet import Packet
 from PIL import Image
 
 from core.fridge import Fridge, FridgeItem
@@ -27,52 +27,70 @@ from models.events import YoriWebEvent
 from models.cooking import Cooking
 from utils.text_utils import get_random_string
 from utils.audio_utils import (
-    bytes_to_int16_list,
-    int16_list_to_bytes,
-    resample_pcm,
-    pcm16_with_multiple_channels,
-    convert_pcm_48k_stereo_to_24k_mono
+    convert_pcm_48k_stereo_to_24k_mono,
+    OpusHandler,
 )
 from utils.audio_logger import AudioLogger
 from fractions import Fraction
-import math
 
 
-class AudioStreamTrack(MediaStreamTrack):
+def _is_audio_debug_enabled() -> bool:
+    return os.getenv("AUDIO_DEBUG", "false").lower() in ("1", "true", "yes", "on")
+
+
+def _audio_debug_interval() -> int:
+    if not _is_audio_debug_enabled():
+        return 0
+    try:
+        interval = int(os.getenv("AUDIO_DEBUG_FRAME_INTERVAL", "50"))
+        if interval <= 0:
+            return 1
+        return interval
+    except ValueError:
+        return 50
+
+
+class OpusEncodedAudioTrack(MediaStreamTrack):
     """
-    오디오 스트림 트랙 (서버 → 클라이언트)
+    Opus로 인코딩된 패킷을 직접 반환하는 오디오 트랙
     """
+
     kind = "audio"
-    
+
     def __init__(self):
         super().__init__()
-        self.queue = asyncio.Queue()
+        self.queue: asyncio.Queue[Packet] = asyncio.Queue()
         self.sample_rate = 48000
         self.channels = 2
-        self._timestamp = 0
-    
+        self._frames_sent = 0
+        self._last_debug_log = time.time()
+        self._debug_enabled = _is_audio_debug_enabled()
+        self._debug_interval = _audio_debug_interval()
+        if self._debug_enabled:
+            print(
+                f"[OpusTrack] debug enabled interval={self._debug_interval} "
+                f"sample_rate={self.sample_rate} channels={self.channels}"
+            )
+
     async def recv(self):
-        """오디오 프레임 Returns"""
-        audio_data = await self.queue.get()
-        
-        # PCM16 데이터를 AudioFrame으로 Convert (48kHz, 2ch)
-        samples = np.frombuffer(audio_data, dtype=np.int16)
-        if samples.size == 0:
-            return await self.recv()
-        if samples.size % self.channels != 0:
-            samples = samples[: samples.size - (samples.size % self.channels)]
-        planar = samples.reshape(-1, self.channels).T.copy()
-        frame = av.AudioFrame.from_ndarray(planar, format='s16', layout='stereo')
-        frame.sample_rate = self.sample_rate
-        frame.time_base = Fraction(1, self.sample_rate)
-        frame.pts = self._timestamp
-        self._timestamp += frame.samples
-        
-        return frame
-    
-    async def add_audio(self, audio_data: bytes):
-        """오디오 데이터 Add"""
-        await self.queue.put(audio_data)
+        packet = await self.queue.get()
+
+        if self._debug_enabled and self._debug_interval:
+            self._frames_sent += 1
+            if self._frames_sent % self._debug_interval == 0:
+                now = time.time()
+                elapsed = now - self._last_debug_log
+                queue_size = self.queue.qsize()
+                print(
+                    f"[OpusTrack] frames={self._frames_sent} pts={packet.pts} "
+                    f"queue={queue_size} Δt={elapsed:.3f}s"
+                )
+                self._last_debug_log = now
+
+        return packet
+
+    async def add_packet(self, packet: Packet):
+        await self.queue.put(packet)
 
 
 class RTCYoriAssistant:
@@ -102,7 +120,7 @@ class RTCYoriAssistant:
         self.detections: List[ObjectDetection] = []
         self.detection_lock = asyncio.Lock()
         self.first_object_detected = False
-        self.audio_track: Optional[AudioStreamTrack] = None
+        self.audio_track: Optional[OpusEncodedAudioTrack] = None
         self.session_id = get_random_string(12)
         audio_logging_enabled = os.getenv("AUDIO_LOGGING", "true").lower() in ("1", "true", "yes", "on")
         self.audio_logger = AudioLogger(enabled=audio_logging_enabled)
@@ -127,20 +145,19 @@ class RTCYoriAssistant:
         # WebRTC PeerConnection Create
         self.pc = RTCPeerConnection()
         
-        # 오디오 트랙 Add (서버 → 클라이언트)
-        self.audio_track = AudioStreamTrack()
-        self.pc.addTrack(self.audio_track)
-        
         # ICE candidate 핸들러
         @self.pc.on("icecandidate")
         async def on_ice_candidate(candidate):
             if candidate:
-                await self._write_json({
-                    "candidate": candidate.candidate,
-                    "sdpMid": candidate.sdpMid,
-                    "sdpMLineIndex": candidate.sdpMLineIndex
-                })
-                print("Successfully sent ICE candidate")
+                try:
+                    await self._write_json({
+                        "candidate": candidate.candidate,
+                        "sdpMid": candidate.sdpMid,
+                        "sdpMLineIndex": candidate.sdpMLineIndex
+                    })
+                    print("Successfully sent ICE candidate")
+                except Exception as e:
+                    print(f"Failed to send ICE candidate (websocket closed?): {e}")
         
         # Connection state 변경 핸들러
         @self.pc.on("connectionstatechange")
@@ -171,19 +188,27 @@ class RTCYoriAssistant:
             print(f"Track received: {track.kind}")
             
             if track.kind == "audio":
-                await self._write_json({
-                    "type": "system",
-                    "event": "audio_track_received",
-                    "data": "audio track received"
-                })
+                try:
+                    await self._write_json({
+                        "type": "system",
+                        "event": "audio_track_received",
+                        "data": "audio track received"
+                    })
+                except Exception as e:
+                    print(f"Failed to notify audio track received: {e}")
+                    return
                 asyncio.create_task(self._handle_audio_track(track))
             
             elif track.kind == "video":
-                await self._write_json({
-                    "type": "system",
-                    "event": "video_track_received",
-                    "data": "video track received"
-                })
+                try:
+                    await self._write_json({
+                        "type": "system",
+                        "event": "video_track_received",
+                        "data": "video track received"
+                    })
+                except Exception as e:
+                    print(f"Failed to notify video track received: {e}")
+                    return
                 asyncio.create_task(self._handle_video_track(track))
         
         # WebSocket 메시지 루프
@@ -501,11 +526,14 @@ class RTCYoriAssistant:
         Go의 168-216번 라인 로직
         """
         audio_channel = await self.assistant.get_audio_response_channel()
-        samples_per_frame = (self.audio_track.sample_rate // 1000) * 20  # 20ms frame
-        bytes_per_frame = samples_per_frame * self.audio_track.channels * 2
-        pcm_buffer = bytearray()
+        samples_per_frame = (self.audio_track.sample_rate // 1000) * 20  # 20ms frame at 48kHz => 960
         chunk_counter = 0
         frame_counter = 0
+        audio_debug = _is_audio_debug_enabled()
+        last_debug_log = time.time()
+        opus_handler = OpusHandler(48000, 2)
+        next_pts = 0
+        packet_time_base = Fraction(1, self.audio_track.sample_rate)
         self.audio_logger.ensure_wav(self.session_id, "outbound", self.audio_track.sample_rate, self.audio_track.channels)
         self.audio_logger.ensure_wav(self.session_id, "outbound_frame", self.audio_track.sample_rate, self.audio_track.channels)
         self.audio_logger.log_note(
@@ -542,40 +570,44 @@ class RTCYoriAssistant:
                     )
                     break
                 
-                # 24kHz 1ch -> 48kHz 2ch 변환 (Go 버전과 동일)
-                pcm_list = bytes_to_int16_list(audio)
-                pcm_list = resample_pcm(pcm_list, 24000, 48000)
-                pcm_list = pcm16_with_multiple_channels(pcm_list, 1, 2)
-                converted_audio = int16_list_to_bytes(pcm_list)
+                # PCM -> Opus 인코딩 (Go 버전과 동일)
                 chunk_counter += 1
-                buffer_after_append = len(pcm_buffer) + len(converted_audio)
-                samples_count = len(converted_audio) // (2 * self.audio_track.channels)
+                opus_frames = opus_handler.convert_pcm16_to_opus(audio, 24000, 1)
                 self.audio_logger.log_outbound_chunk(
                     self.session_id,
                     f"pcm_{chunk_counter}",
-                    converted_audio,
-                    sample_rate=self.audio_track.sample_rate,
-                    channels=self.audio_track.channels,
-                    note=f"samples={samples_count} buffer_before={len(pcm_buffer)} buffer_after={buffer_after_append}",
+                    audio,
+                    sample_rate=24000,
+                    channels=1,
+                    note=f"opus_frames={len(opus_frames)}",
                 )
-                
-                pcm_buffer.extend(converted_audio)
-                
-                while len(pcm_buffer) >= bytes_per_frame:
-                    chunk = bytes(pcm_buffer[:bytes_per_frame])
-                    pcm_buffer = pcm_buffer[bytes_per_frame:]
-                    await self.audio_track.add_audio(chunk)
+
+                for opus_frame in opus_frames:
+                    pkt = Packet(opus_frame)
+                    pkt.pts = next_pts
+                    pkt.time_base = packet_time_base
+                    next_pts += samples_per_frame
+
+                    await self.audio_track.add_packet(pkt)
                     frame_counter += 1
                     queue_size = self.audio_track.queue.qsize()
                     self.audio_logger.log_outbound_frame(
                         self.session_id,
                         f"frame_{frame_counter}",
-                        chunk,
+                        opus_frame,
                         sample_rate=self.audio_track.sample_rate,
                         channels=self.audio_track.channels,
-                        note=f"frame_samples={samples_per_frame} remaining_buffer={len(pcm_buffer)} queue_size={queue_size}",
+                        note=f"pts={pkt.pts} queue_size={queue_size}",
                     )
                     await asyncio.sleep(samples_per_frame / self.audio_track.sample_rate)
+                
+                if audio_debug and (chunk_counter % 10 == 0 or (time.time() - last_debug_log) > 2):
+                    queue_size = self.audio_track.queue.qsize()
+                    print(
+                        f"[AudioSenderLoop] chunks={chunk_counter} frames={frame_counter} "
+                        f"queue={queue_size}"
+                    )
+                    last_debug_log = time.time()
                 
             except Exception as e:
                 print(f"Audio sender loop error: {e}")
@@ -796,8 +828,22 @@ class RTCYoriAssistant:
                 if "candidate" in msg:
                     try:
                         candidate = candidate_from_sdp(msg["candidate"])
-                        candidate.sdpMid = msg.get("sdpMid")
-                        candidate.sdpMLineIndex = msg.get("sdpMLineIndex")
+                        if candidate is None:
+                            continue
+                        sdp_mid = msg.get("sdpMid")
+                        sdp_mline_index = msg.get("sdpMLineIndex")
+                        if sdp_mid is None or sdp_mline_index is None:
+                            continue
+                        candidate.sdpMid = sdp_mid
+                        candidate.sdpMLineIndex = sdp_mline_index
+                        valid_mids = {
+                            transceiver.mid
+                            for transceiver in self.pc.getTransceivers()
+                            if transceiver.mid is not None
+                        }
+                        if sdp_mid not in valid_mids:
+                            print(f"Skipping ICE candidate for unknown mid {sdp_mid}")
+                            continue
                         await self.pc.addIceCandidate(candidate)
                     except Exception as e:
                         print(f"Failed to add ICE candidate: {e}")
@@ -809,10 +855,38 @@ class RTCYoriAssistant:
                     # SDP offer Handle
                     offer = RTCSessionDescription(sdp=msg["sdp"], type="offer")
                     await self.pc.setRemoteDescription(offer)
+
+                    if not self.audio_track:
+                        self.audio_track = OpusEncodedAudioTrack()
+                    audio_transceiver = None
+                    for transceiver in self.pc.getTransceivers():
+                        if transceiver.kind == "audio":
+                            audio_transceiver = transceiver
+                            break
+                    if audio_transceiver:
+                        try:
+                            audio_transceiver.direction = "sendrecv"
+                        except Exception:
+                            pass
+                        audio_transceiver.sender.replaceTrack(self.audio_track)
+                    else:
+                        audio_transceiver = self.pc.addTransceiver(self.audio_track, direction="sendrecv")
+                    if _is_audio_debug_enabled():
+                        sender = audio_transceiver.sender
+                        try:
+                            sender_info = f"sender_mid={sender.transport.mid}" if sender.transport else "sender_mid=None"
+                        except Exception:
+                            sender_info = "sender_mid=unknown"
+                        print(
+                            f"[RTC] Attached outbound audio track id={getattr(self.audio_track, 'id', 'unknown')} "
+                            f"{sender_info} direction={audio_transceiver.direction}"
+                        )
                     
                     # Answer Create
                     answer = await self.pc.createAnswer()
                     await self.pc.setLocalDescription(answer)
+                    if _is_audio_debug_enabled():
+                        self._log_local_audio_sdp(answer.sdp)
                     
                     # Answer 전송
                     await self._write_json({
@@ -913,7 +987,34 @@ class RTCYoriAssistant:
         WebSocket JSON 전송
         Go의 writeJSON과 동일
         """
-        await self.websocket.send_json(data)
+        if not self.websocket or self.websocket.client_state != WebSocketState.CONNECTED:
+            return
+        try:
+            await self.websocket.send_json(data)
+        except Exception as e:
+            print(f"Failed to send websocket message: {e}")
+    
+    def _log_local_audio_sdp(self, sdp: str):
+        if not sdp or not _is_audio_debug_enabled():
+            return
+        capture = False
+        count = 0
+        print("[RTC][SDP] ---- audio section start ----")
+        for line in sdp.splitlines():
+            if line.startswith("m=audio"):
+                capture = True
+            elif capture and line.startswith("m="):
+                break
+            if capture:
+                print(f"[RTC][SDP] {line}")
+                count += 1
+                if count > 40:
+                    print("[RTC][SDP] ... (truncated)")
+                    break
+        if not capture:
+            print("[RTC][SDP] audio m-line not found!")
+        else:
+            print("[RTC][SDP] ---- audio section end ----")
     
     async def cleanup(self):
         """리소스 정리"""
@@ -925,6 +1026,7 @@ class RTCYoriAssistant:
             await self.yori_db.close()
         if self.audio_logger and self.session_id:
             self.audio_logger.close_session(self.session_id)
+        self.audio_track = None
 
 
 from datetime import datetime
