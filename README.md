@@ -1,6 +1,6 @@
 # Realtime Cooking Mama (Python)
 
-A complete Python port of the Go server (yori-server) with 1:1 feature parity.
+Realtime Cooking Mama is a real-time cooking assistant built with FastAPI, aiortc, Ultralytics YOLO, and the OpenAI Realtime API. It delivers end-to-end video, audio, and conversational guidance so users can show ingredients in the browser and receive step-by-step help while cooking.
 
 ## Tech Stack
 
@@ -8,7 +8,7 @@ A complete Python port of the Go server (yori-server) with 1:1 feature parity.
 - **aiortc**: WebRTC implementation
 - **Ultralytics YOLO**: Object detection
 - **OpenAI Realtime API**: Voice conversation
-- **SQLite**: Database (replaces MongoDB)
+- **SQLite**: Embedded database for session history
 
 ## Installation
 
@@ -28,14 +28,13 @@ pip install -r requirements.txt
 
 ### 3. Prepare Resource Files
 
-**Copy resources from the Go server:**
+**Add your resource files to `resources/`:**
 
 ```bash
-# Assuming yori-server is at ../../../yori-server
 mkdir -p resources
-cp ../../../yori-server/resources/yori_detector.onnx resources/
-cp ../../../yori-server/resources/data-names.yaml resources/
-cp ../../../yori-server/resources/recipe.json resources/
+cp /path/to/your/yori_detector.onnx resources/
+cp /path/to/your/data-names.yaml resources/
+cp /path/to/your/recipe.json resources/
 ```
 
 Required files:
@@ -44,8 +43,9 @@ Required files:
 - `data-names.yaml` - Detection class names list
 - `recipe.json` - Recipe database
 
-**Note**: This project does NOT require `.env` files or environment variable setup!
-API keys are entered directly from the client side.
+**Note**: This project does NOT require `.env` files or mandatory environment variables.
+API keys are entered directly from the client side, but you can still opt-in to fine‑tune detection
+and audio behavior via the optional variables listed below.
 
 ## Running the Server
 
@@ -117,6 +117,7 @@ pytest
 4. **Fridge Management**
 5. **Recipe Recommendation and Step-by-step Guidance**
 6. **Cooking History Storage**
+7. **Tunable WebRTC audio pipeline (Opus bitrate/DTX/queue controls via env vars)**
 
 ## Architecture
 
@@ -129,16 +130,6 @@ This project is designed with a **client-side API key input approach**:
 - No `.env` file configuration needed
 - Optimized for local development/testing
 
-### Differences from Original Go Server
-
-| Feature            | Go Server                    | Python Server (This Project)        |
-| ------------------ | ---------------------------- | ----------------------------------- |
-| Authentication     | Server-side PASSWORD env var | Client-side API key input           |
-| Object Detection   | GoCV or external server      | Ultralytics YOLO + GPT Vision       |
-| Database           | MongoDB                      | SQLite                              |
-| API Key Management | Server environment variable  | Client input                        |
-| Fallback Detection | None                         | GPT-4 Vision API (5-sec throttling) |
-
 ### GPT Vision Fallback
 
 The system implements an intelligent fallback mechanism for object detection:
@@ -146,8 +137,8 @@ The system implements an intelligent fallback mechanism for object detection:
 1. **Primary Detection**: YOLO model (`yori_detector.onnx`) attempts to detect ingredients
 2. **Fallback Trigger**: If YOLO returns empty results, GPT-4 Vision API is called
 3. **Throttling**: Minimum 5-second interval between GPT Vision calls to control costs
-4. **Broader Detection**: GPT Vision can detect ingredients not in the YOLO training set
-5. **Cost Optimization**:
+   제4. **Broader Detection**: GPT Vision can detect ingredients not in the YOLO training set
+4. **Cost Optimization**:
    - Images are resized to 512x512 before sending
    - Low detail mode is used for API calls
    - Estimated cost: ~$0.01 per image, max 12 calls/minute with throttling
@@ -168,11 +159,19 @@ Message format between client and server:
 
 ## Environment Variables (Optional)
 
-**No required environment variables!** The following are optional:
+**No required environment variables!** The following knobs are available if you want to tune behavior:
 
-- `PROFILE`: Profile (local, production, etc.) - Default: ""
-- `DEBUG_MODE`: Debug mode (true/false) - Default: false
-- `AUDIO_LOGGING`: Set to `false`/`0` to disable audio chunk/WAV logging (default `true`)
+| Variable                      | Default | Description                                                                                                                     |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `PROFILE`                     | `""`    | Optional profile name (`local`, `production`, …) used in `main.py` to decide whether to load `.env`.                            |
+| `DEBUG_MODE`                  | `false` | Enables extra logging in the WebSocket signaling loop.                                                                          |
+| `AUDIO_LOGGING`               | `true`  | Set to `false`/`0` to disable recording outbound/inbound audio chunks & WAVs under `logs/audio/`.                               |
+| `YOLO_CONFIDENCE`             | `0.6`   | Confidence threshold for the Ultralytics YOLO detector. Increase to filter out weak detections, decrease to be more permissive. |
+| `AUDIO_OPUS_BITRATE`          | `64000` | Target bitrate (bits/sec) for the server→browser Opus encoder.                                                                  |
+| `AUDIO_OPUS_COMPLEXITY`       | `10`    | Opus encoder complexity (0–10). Lower values reduce CPU usage at the cost of quality.                                           |
+| `AUDIO_OPUS_DTX`              | `false` | Enable Opus discontinuous transmission for silence suppression.                                                                 |
+| `AUDIO_OPUS_QUEUE_MAX`        | `200`   | Maximum number of Opus frames buffered before older frames are dropped.                                                         |
+| `AUDIO_SEND_METRICS_INTERVAL` | `100`   | How often the server prints/send-loop stats (in frames).                                                                        |
 
 ## Development
 
@@ -238,4 +237,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributors
 
-Developed as a complete port from the Go-based yori-server to Python, maintaining full feature compatibility with test.html client.
+Created and maintained by the Realtime Cooking Mama team.
