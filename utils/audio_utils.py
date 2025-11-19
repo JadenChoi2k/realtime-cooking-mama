@@ -3,7 +3,7 @@ Audio Utilities
 Complete port of Go's utils/audio_utils.go
 """
 import base64
-from typing import List
+from typing import List, Optional
 import opuslib
 
 
@@ -168,7 +168,14 @@ class OpusHandler:
     Equivalent to Go's OpusHandler struct
     """
     
-    def __init__(self, sample_rate: int, channels: int):
+    def __init__(
+        self,
+        sample_rate: int,
+        channels: int,
+        bitrate: Optional[int] = None,
+        complexity: Optional[int] = None,
+        use_dtx: Optional[bool] = None,
+    ):
         """
         Args:
             sample_rate: sample rate (e.g.: 48000)
@@ -178,6 +185,21 @@ class OpusHandler:
         self.channels = channels
         self.decoder = opuslib.Decoder(sample_rate, channels)
         self.encoder = opuslib.Encoder(sample_rate, channels, opuslib.APPLICATION_AUDIO)
+        if bitrate:
+            try:
+                self.encoder.bitrate = bitrate
+            except Exception:
+                pass
+        if complexity is not None:
+            try:
+                self.encoder.complexity = complexity
+            except Exception:
+                pass
+        if use_dtx is not None:
+            try:
+                self.encoder.dtx = use_dtx
+            except Exception:
+                pass
         self.frame_size = (self.sample_rate // 1000) * 20
     
     def convert_opus_to_pcm16(self, opus_data: bytes) -> bytes:
@@ -246,5 +268,15 @@ def convert_pcm_48k_stereo_to_24k_mono(pcm_bytes: bytes) -> bytes:
     pcm_list = pcm16_with_single_channel(pcm_list)
     
     # 4. int16 list -> bytes
+    return int16_list_to_bytes(pcm_list)
+
+
+def convert_pcm_24k_mono_to_48k_stereo(pcm_bytes: bytes) -> bytes:
+    """
+    24kHz 1ch PCM -> 48kHz 2ch 변환
+    """
+    pcm_list = bytes_to_int16_list(pcm_bytes)
+    pcm_list = resample_pcm(pcm_list, 24000, 48000)
+    pcm_list = pcm16_with_multiple_channels(pcm_list, 1, 2)
     return int16_list_to_bytes(pcm_list)
 

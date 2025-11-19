@@ -28,6 +28,7 @@ from models.cooking import Cooking
 from utils.text_utils import get_random_string
 from utils.audio_utils import (
     convert_pcm_48k_stereo_to_24k_mono,
+    convert_pcm_24k_mono_to_48k_stereo,
     OpusHandler,
 )
 from utils.audio_logger import AudioLogger
@@ -59,6 +60,7 @@ class OpusEncodedAudioTrack(MediaStreamTrack):
 
     def __init__(self):
         super().__init__()
+        self.max_queue = int(os.getenv("AUDIO_OPUS_QUEUE_MAX", "200"))
         self.queue: asyncio.Queue[Packet] = asyncio.Queue()
         self.sample_rate = 48000
         self.channels = 2
@@ -90,6 +92,16 @@ class OpusEncodedAudioTrack(MediaStreamTrack):
         return packet
 
     async def add_packet(self, packet: Packet):
+        if self.max_queue and self.queue.qsize() >= self.max_queue:
+            try:
+                _ = self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+            else:
+                if self._debug_enabled:
+                    print(
+                        f"[OpusTrack] queue overflow -> dropping oldest packet (size={self.queue.qsize()})"
+                    )
         await self.queue.put(packet)
 
 
@@ -527,15 +539,37 @@ class RTCYoriAssistant:
         """
         audio_channel = await self.assistant.get_audio_response_channel()
         samples_per_frame = (self.audio_track.sample_rate // 1000) * 20  # 20ms frame at 48kHz => 960
+        send_interval = samples_per_frame / self.audio_track.sample_rate
         chunk_counter = 0
         frame_counter = 0
         audio_debug = _is_audio_debug_enabled()
-        last_debug_log = time.time()
-        opus_handler = OpusHandler(48000, 2)
+        diag_interval = int(os.getenv("AUDIO_SEND_METRICS_INTERVAL", "100"))
+        stats = {
+            "frames": 0,
+            "late_frames": 0,
+            "max_queue": 0,
+            "total_abs_drift": 0.0,
+        }
+        opus_bitrate = int(os.getenv("AUDIO_OPUS_BITRATE", "64000"))
+        opus_complexity = int(os.getenv("AUDIO_OPUS_COMPLEXITY", "10"))
+        opus_dtx = os.getenv("AUDIO_OPUS_DTX", "false").lower() in ("1", "true", "yes", "on")
+        opus_handler = OpusHandler(
+            48000,
+            2,
+            bitrate=opus_bitrate,
+            complexity=opus_complexity,
+            use_dtx=opus_dtx,
+        )
+        if audio_debug:
+            print(
+                f"[AudioSenderLoop] Opus bitrate={opus_bitrate} complexity={opus_complexity} dtx={opus_dtx}"
+            )
         next_pts = 0
+        next_send_time = time.perf_counter()
         packet_time_base = Fraction(1, self.audio_track.sample_rate)
         self.audio_logger.ensure_wav(self.session_id, "outbound", self.audio_track.sample_rate, self.audio_track.channels)
         self.audio_logger.ensure_wav(self.session_id, "outbound_frame", self.audio_track.sample_rate, self.audio_track.channels)
+        self.audio_logger.ensure_wav(self.session_id, "outbound_48k", 48000, 2)
         self.audio_logger.log_note(
             self.session_id,
             "outbound",
@@ -581,6 +615,16 @@ class RTCYoriAssistant:
                     channels=1,
                     note=f"opus_frames={len(opus_frames)}",
                 )
+                converted_audio = convert_pcm_24k_mono_to_48k_stereo(audio)
+                self.audio_logger.log_chunk(
+                    self.session_id,
+                    "outbound_48k",
+                    f"pcm48k_{chunk_counter}",
+                    converted_audio,
+                    sample_rate=48000,
+                    channels=2,
+                    note=f"from_chunk={chunk_counter}",
+                )
 
                 for opus_frame in opus_frames:
                     pkt = Packet(opus_frame)
@@ -588,6 +632,15 @@ class RTCYoriAssistant:
                     pkt.time_base = packet_time_base
                     next_pts += samples_per_frame
 
+                    now = time.perf_counter()
+                    if now < next_send_time:
+                        await asyncio.sleep(next_send_time - now)
+                        drift = abs(time.perf_counter() - next_send_time)
+                        next_send_time += send_interval
+                    else:
+                        drift = now - next_send_time
+                        next_send_time = now + send_interval
+                        stats["late_frames"] += 1
                     await self.audio_track.add_packet(pkt)
                     frame_counter += 1
                     queue_size = self.audio_track.queue.qsize()
@@ -599,15 +652,24 @@ class RTCYoriAssistant:
                         channels=self.audio_track.channels,
                         note=f"pts={pkt.pts} queue_size={queue_size}",
                     )
-                    await asyncio.sleep(samples_per_frame / self.audio_track.sample_rate)
-                
-                if audio_debug and (chunk_counter % 10 == 0 or (time.time() - last_debug_log) > 2):
-                    queue_size = self.audio_track.queue.qsize()
-                    print(
-                        f"[AudioSenderLoop] chunks={chunk_counter} frames={frame_counter} "
-                        f"queue={queue_size}"
-                    )
-                    last_debug_log = time.time()
+                    stats["frames"] += 1
+                    stats["total_abs_drift"] += drift
+                    if queue_size > stats["max_queue"]:
+                        stats["max_queue"] = queue_size
+                    if diag_interval and stats["frames"] % diag_interval == 0:
+                        avg_drift = stats["total_abs_drift"] / stats["frames"]
+                        print(
+                            f"[AudioSenderLoop][Stats] frames={stats['frames']} late={stats['late_frames']} "
+                            f"avg_abs_drift={avg_drift * 1000:.2f}ms queue_max={stats['max_queue']}"
+                        )
+                        self.audio_logger.log_note(
+                            self.session_id,
+                            "outbound",
+                            f"stats frames={stats['frames']} late={stats['late_frames']} "
+                            f"avg_abs_drift_ms={avg_drift * 1000:.2f} queue_max={stats['max_queue']}",
+                            sample_rate=self.audio_track.sample_rate,
+                            channels=self.audio_track.channels,
+                        )
                 
             except Exception as e:
                 print(f"Audio sender loop error: {e}")
