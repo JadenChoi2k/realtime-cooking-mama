@@ -5,10 +5,13 @@ Fallback object detection using OpenAI's GPT-4 Vision API
 import base64
 import io
 import json
-from typing import List
+import os
+import re
+from difflib import get_close_matches
+from typing import List, Optional
 from PIL import Image
 from openai import OpenAI
-from core.object_detector import ObjectDetection
+from core.object_detector import ObjectDetection, parse_class_names
 
 
 class GPTVisionDetector:
@@ -17,15 +20,28 @@ class GPTVisionDetector:
     Used as fallback when YOLO returns empty results
     """
     
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o",
+        yaml_path: Optional[str] = "./resources/data-names.yaml",
+        class_names: Optional[List[str]] = None,
+    ):
         """
         Args:
             api_key: OpenAI API key
             model: Model name (gpt-4o for vision)
+            yaml_path: Optional path to class names YAML for label normalization
+            class_names: Optional explicit list of class names; overrides yaml_path
         """
         self.api_key = api_key
         self.model = model
         self.client = OpenAI(api_key=api_key)
+        self.class_names = self._load_class_names(class_names, yaml_path)
+        self._normalized_label_map = self._build_normalized_label_map(self.class_names)
+        self._collapsed_label_map = {
+            key.replace("-", ""): value for key, value in self._normalized_label_map.items()
+        }
         
         # System prompt for food ingredient detection
         self.system_prompt = """You are a food ingredient detection system. 
@@ -163,10 +179,14 @@ Rules:
                 if not name:
                     continue
                 
+                mapped_name = self._map_to_known_label(name)
+                if not mapped_name:
+                    continue
+                
                 # Create ObjectDetection with full image as bounding box
                 detection = ObjectDetection(
-                    class_name=name,
-                    confidence=confidence,
+                    class_name=mapped_name,
+                    confidence=self._clamp_confidence(confidence),
                     x1=0,
                     y1=0,
                     x2=width,
@@ -183,4 +203,75 @@ Rules:
         except Exception as e:
             print(f"Error parsing GPT Vision response: {e}")
             return []
+
+    def _load_class_names(
+        self,
+        class_names: Optional[List[str]],
+        yaml_path: Optional[str],
+    ) -> List[str]:
+        """Load class names from direct input or YAML file."""
+        if class_names:
+            return class_names
+        
+        if yaml_path and os.path.exists(yaml_path):
+            try:
+                return parse_class_names(yaml_path)
+            except Exception as exc:
+                print(f"Failed to load class names from {yaml_path}: {exc}")
+        
+        return []
+
+    def _build_normalized_label_map(self, class_names: List[str]) -> dict:
+        """Create mapping from normalized label -> canonical label."""
+        normalized_map = {}
+        for label in class_names:
+            normalized = self._normalize_label(label)
+            if normalized:
+                normalized_map[normalized] = label
+        return normalized_map
+
+    def _normalize_label(self, label: str) -> str:
+        """Normalize a label string for comparison."""
+        normalized = label.lower().strip()
+        normalized = normalized.replace("_", "-")
+        normalized = re.sub(r"[^a-z0-9-]+", "-", normalized)
+        normalized = re.sub(r"-{2,}", "-", normalized)
+        return normalized.strip("-")
+
+    def _map_to_known_label(self, raw_label: str) -> str:
+        """
+        Map GPT provided label to known class list.
+        Falls back to normalized label when no close match exists.
+        """
+        normalized = self._normalize_label(raw_label)
+        if not normalized:
+            return ""
+        
+        if not self._normalized_label_map:
+            return normalized
+        
+        if normalized in self._normalized_label_map:
+            return self._normalized_label_map[normalized]
+        
+        collapsed = normalized.replace("-", "")
+        if collapsed in self._collapsed_label_map:
+            return self._collapsed_label_map[collapsed]
+        
+        # Attempt fuzzy match against normalized keys
+        best_match = get_close_matches(normalized, list(self._normalized_label_map.keys()), n=1, cutoff=0.78)
+        if best_match:
+            return self._normalized_label_map[best_match[0]]
+        
+        best_collapsed = get_close_matches(collapsed, list(self._collapsed_label_map.keys()), n=1, cutoff=0.85)
+        if best_collapsed:
+            return self._collapsed_label_map[best_collapsed[0]]
+        
+        return normalized
+
+    def _clamp_confidence(self, confidence: float) -> float:
+        """Clamp confidence to 0-1 range."""
+        try:
+            return max(0.0, min(1.0, float(confidence)))
+        except (TypeError, ValueError):
+            return 0.8
 

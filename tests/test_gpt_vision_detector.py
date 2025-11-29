@@ -9,6 +9,15 @@ from dotenv import load_dotenv
 from core.gpt_vision_detector import GPTVisionDetector
 from core.object_detector import ObjectDetection
 
+TEST_CLASS_NAMES = [
+    "brown-egg",
+    "chicken-breast",
+    "onion",
+    "egg",
+    "test-item",
+    "test",
+]
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -18,7 +27,7 @@ class TestGPTVisionDetector:
     
     def test_gpt_vision_detector_init(self):
         """Test GPTVisionDetector initialization"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         assert detector.api_key == "test-key"
         assert detector.model == "gpt-4o"
@@ -27,7 +36,7 @@ class TestGPTVisionDetector:
     
     def test_gpt_vision_detector_init_custom_model(self):
         """Test GPTVisionDetector with custom model"""
-        detector = GPTVisionDetector(api_key="test-key", model="gpt-4-turbo")
+        detector = GPTVisionDetector(api_key="test-key", model="gpt-4-turbo", class_names=TEST_CLASS_NAMES)
         
         assert detector.model == "gpt-4-turbo"
     
@@ -35,7 +44,7 @@ class TestGPTVisionDetector:
         """Test image to base64 conversion"""
         # Create a small test image
         test_image = Image.new('RGB', (100, 100), color='red')
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Convert to base64
         base64_str = detector._image_to_base64(test_image)
@@ -48,7 +57,7 @@ class TestGPTVisionDetector:
         """Test that large images are resized"""
         # Create a large test image
         test_image = Image.new('RGB', (2000, 2000), color='blue')
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Convert to base64
         base64_str = detector._image_to_base64(test_image)
@@ -59,7 +68,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_valid_json(self):
         """Test parsing valid JSON response"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Valid response
         response = '[{"name": "brown-egg", "confidence": 0.95}, {"name": "onion", "confidence": 0.85}]'
@@ -77,7 +86,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_with_markdown_code_block(self):
         """Test parsing response wrapped in markdown code block"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Response with markdown
         response = '```json\n[{"name": "chicken-breast", "confidence": 0.9}]\n```'
@@ -89,7 +98,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_empty_array(self):
         """Test parsing empty array response"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         response = '[]'
         detections = detector._parse_response(response, (640, 480))
@@ -98,7 +107,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_invalid_json(self):
         """Test handling invalid JSON"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         response = 'This is not valid JSON'
         detections = detector._parse_response(response, (640, 480))
@@ -107,7 +116,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_missing_fields(self):
         """Test handling responses with missing fields"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Missing confidence
         response = '[{"name": "egg"}]'
@@ -119,7 +128,7 @@ class TestGPTVisionDetector:
     
     def test_parse_response_skips_invalid_items(self):
         """Test that invalid items are skipped"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Mixed valid and invalid items
         response = '[{"name": "egg", "confidence": 0.9}, {"confidence": 0.8}, {"name": "", "confidence": 0.7}]'
@@ -128,6 +137,28 @@ class TestGPTVisionDetector:
         # Should only have the first valid item
         assert len(detections) == 1
         assert detections[0].class_name == "egg"
+    
+    def test_parse_response_maps_aliases_to_known_labels(self):
+        """Test that human-readable names map to canonical labels"""
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
+        
+        response = '[{"name": "Brown Egg", "confidence": 0.92}]'
+        detections = detector._parse_response(response, (640, 480))
+        
+        assert len(detections) == 1
+        assert detections[0].class_name == "brown-egg"
+        assert detections[0].confidence == 0.92
+    
+    def test_parse_response_normalizes_unknown_labels(self):
+        """Test that unknown labels are still normalized consistently"""
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
+        
+        response = '[{"name": "Green Apple", "confidence": 1.2}]'
+        detections = detector._parse_response(response, (640, 480))
+        
+        assert len(detections) == 1
+        assert detections[0].class_name == "green-apple"
+        assert detections[0].confidence == 1.0  # Clamped
     
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No API key available")
     def test_gpt_vision_detect_with_real_image(self):
@@ -154,7 +185,7 @@ class TestGPTVisionDetector:
     
     def test_detect_with_mock_api(self):
         """Test detect method with mocked OpenAI API"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Create mock response
         mock_response = MagicMock()
@@ -172,7 +203,7 @@ class TestGPTVisionDetector:
     
     def test_detect_handles_api_error(self):
         """Test that detect handles API errors gracefully"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         # Patch the API call to raise an error
         with patch.object(detector.client.chat.completions, 'create', side_effect=Exception("API Error")):
@@ -184,7 +215,7 @@ class TestGPTVisionDetector:
     
     def test_result_format_matches_object_detection(self):
         """Test that results match ObjectDetection format"""
-        detector = GPTVisionDetector(api_key="test-key")
+        detector = GPTVisionDetector(api_key="test-key", class_names=TEST_CLASS_NAMES)
         
         response = '[{"name": "test-item", "confidence": 0.88}]'
         detections = detector._parse_response(response, (1920, 1080))
