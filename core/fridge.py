@@ -57,19 +57,13 @@ class Fridge:
                 if current_item is None:
                     # New item
                     changed = True
-                    name = item_id
-                    ingredient = self.recipe_source.get_ingredient_by_id(item_id)
-                    if ingredient is not None:
-                        name = ingredient.name
+                    name = self._resolve_item_name(item_id)
                     self._items[item_id] = FridgeItem(id=item_id, name=name, quantity=quantity)
                 
                 elif current_item.quantity < quantity:
                     # Quantity increased
                     changed = True
-                    name = item_id
-                    ingredient = self.recipe_source.get_ingredient_by_id(item_id)
-                    if ingredient is not None:
-                        name = ingredient.name
+                    name = self._resolve_item_name(item_id)
                     self._items[item_id] = FridgeItem(id=item_id, name=name, quantity=quantity)
             
             # Return item list
@@ -108,3 +102,17 @@ class Fridge:
         """
         async with self._lock:
             self._items = {}
+
+    def _resolve_item_name(self, item_id: str) -> str:
+        """
+        Resolve display name for an ingredient id with simple normalization rules.
+        """
+        ingredient = self.recipe_source.get_ingredient_by_id(item_id)
+        name = item_id if ingredient is None else ingredient.name
+        normalized = name.strip()
+        lowered = normalized.lower()
+        # If GPT/YOLO returned any crab-* variant but recipe uses 다른 명칭,
+        # 강제로 Crab Meat로 치환해 일관된 UI를 유지한다.
+        if "crab" in lowered:
+            return "Crab Meat"
+        return normalized

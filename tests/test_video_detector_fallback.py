@@ -228,6 +228,57 @@ class TestVideoDetectorFallback:
         
         # Cleanup
         await vod.stop()
+
+    def test_gpt_alias_mapping_for_crab_variants(self):
+        """Ensure GPT Vision alias map normalizes crab-stick names to crab-meat"""
+        with patch("core.gpt_vision_detector.OpenAI") as mock_openai:
+            mock_openai.return_value = MagicMock()
+            detector = GPTVisionDetector(api_key="fake", class_names=["crab-meat"])
+            assert detector._map_to_known_label("crab-stick") == "crab-meat"
+            assert detector._map_to_known_label("crab stick") == "crab-meat"
+            assert detector._map_to_known_label("imitation-crab") == "crab-meat"
+            assert detector._map_to_known_label("Kanikama") == "crab-meat"
+            assert detector._map_to_known_label("crab salad mix") == "crab-meat"
+
+    @pytest.mark.asyncio
+    async def test_frame_queue_cleared_when_gpt_runs(self):
+        """Ensure pending frames are dropped while GPT Vision fallback is running"""
+        mock_yolo = Mock(spec=YOLODetector)
+        mock_yolo.detect.return_value = []
+
+        mock_gpt = Mock(spec=GPTVisionDetector)
+
+        def slow_gpt_detect(img):
+            time.sleep(0.1)
+            return [
+                ObjectDetection(class_name="fallback", confidence=0.8, x1=0, y1=0, x2=10, y2=10)
+            ]
+
+        mock_gpt.detect.side_effect = slow_gpt_detect
+
+        vod = VideoObjectDetector(mock_yolo, fallback_detector=mock_gpt)
+        await vod.start()
+
+        test_image = Image.new("RGB", (50, 50), color="pink")
+
+        # Queue multiple frames before fallback kicks in
+        for _ in range(3):
+            await vod.get_image_input_queue().put(test_image)
+
+        # Wait for fallback to engage
+        for _ in range(20):
+            if vod.is_gpt_processing():
+                break
+            await asyncio.sleep(0.01)
+
+        # Allow fallback to finish
+        await asyncio.sleep(0.2)
+
+        # Queue should be cleared so YOLO doesn't process stale frames
+        assert vod.get_image_input_queue().empty()
+        assert not vod.is_gpt_processing()
+
+        await vod.stop()
     
     @pytest.mark.skipif(not os.path.exists("./resources/test_fridge.jpg"), 
                         reason="Test image not found")

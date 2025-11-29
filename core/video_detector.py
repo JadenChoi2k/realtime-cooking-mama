@@ -4,6 +4,7 @@ Complete port of Go's ybcore/video_object_detector.go
 """
 import asyncio
 import time
+from asyncio import QueueEmpty
 from typing import List, Optional
 from PIL import Image
 from core.object_detector import YOLODetector, ObjectDetection
@@ -16,7 +17,7 @@ class VideoObjectDetector:
     Now with GPT Vision fallback support
     """
     
-    def __init__(self, detector: YOLODetector, fallback_detector=None, gpt_throttle_seconds: float = 5.0):
+    def __init__(self, detector: YOLODetector, fallback_detector=None, gpt_throttle_seconds: float = 2.5):
         """
         Args:
             detector: YOLODetector instance
@@ -32,6 +33,7 @@ class VideoObjectDetector:
         self.running = False
         self.image_progressing = False
         self._task = None
+        self.gpt_processing = False
     
     async def start(self):
         """
@@ -87,9 +89,13 @@ class VideoObjectDetector:
                 
                 if time_since_last_call >= self.gpt_throttle_seconds:
                     print(f"YOLO returned empty, calling GPT Vision fallback (last call: {time_since_last_call:.1f}s ago)")
-                    # Call GPT Vision fallback (run async method)
-                    detections = await loop.run_in_executor(None, self.fallback_detector.detect, image)
-                    self.last_gpt_call_time = current_time
+                    self.gpt_processing = True
+                    self._clear_pending_images()
+                    try:
+                        detections = await loop.run_in_executor(None, self.fallback_detector.detect, image)
+                        self.last_gpt_call_time = current_time
+                    finally:
+                        self.gpt_processing = False
                 else:
                     print(f"YOLO returned empty, but GPT throttled (last call: {time_since_last_call:.1f}s ago)")
             
@@ -131,4 +137,26 @@ class VideoObjectDetector:
         Same as Go's IsRunning
         """
         return self.running
+
+    def is_gpt_processing(self) -> bool:
+        """
+        Whether GPT Vision fallback is currently running.
+        Used so higher layers can pause frame ingestion while GPT is busy.
+        """
+        return self.gpt_processing
+
+    def _clear_pending_images(self):
+        """
+        Drop any frames that piled up while YOLO was running.
+        Prevents a backlog of stale frames once GPT fallback kicks in so audio loops keep up.
+        """
+        cleared = 0
+        while True:
+            try:
+                self.image_queue.get_nowait()
+                cleared += 1
+            except QueueEmpty:
+                break
+        if cleared:
+            print(f"Cleared {cleared} pending frames before GPT Vision fallback")
 

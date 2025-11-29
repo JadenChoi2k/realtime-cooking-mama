@@ -166,7 +166,7 @@ Message format between client and server:
 | `PROFILE`                     | `""`    | Optional profile name (`local`, `production`, …) used in `main.py` to decide whether to load `.env`.                            |
 | `DEBUG_MODE`                  | `false` | Enables extra logging in the WebSocket signaling loop.                                                                          |
 | `AUDIO_LOGGING`               | `true`  | Set to `false`/`0` to disable recording outbound/inbound audio chunks & WAVs under `logs/audio/`.                               |
-| `YOLO_CONFIDENCE`             | `0.6`   | Confidence threshold for the Ultralytics YOLO detector. Increase to filter out weak detections, decrease to be more permissive. |
+| `YOLO_CONFIDENCE`             | `0.8`   | Confidence threshold for the Ultralytics YOLO detector. Increase to filter out weak detections, decrease to be more permissive. |
 | `AUDIO_OPUS_BITRATE`          | `64000` | Target bitrate (bits/sec) for the server→browser Opus encoder.                                                                  |
 | `AUDIO_OPUS_COMPLEXITY`       | `10`    | Opus encoder complexity (0–10). Lower values reduce CPU usage at the cost of quality.                                           |
 | `AUDIO_OPUS_DTX`              | `false` | Enable Opus discontinuous transmission for silence suppression.                                                                 |

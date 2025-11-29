@@ -42,6 +42,7 @@ class GPTVisionDetector:
         self._collapsed_label_map = {
             key.replace("-", ""): value for key, value in self._normalized_label_map.items()
         }
+        self._alias_map = self._build_alias_map(self.class_names)
         
         # System prompt for food ingredient detection
         self.system_prompt = """You are a food ingredient detection system. 
@@ -230,6 +231,36 @@ Rules:
                 normalized_map[normalized] = label
         return normalized_map
 
+    def _build_alias_map(self, class_names: List[str]) -> dict:
+        """
+        Build explicit alias mapping so GPT가 비정규화 명칭을 사용해도
+        우리가 가진 클래스 이름으로 강제 매핑할 수 있도록 한다.
+        """
+        alias_config = {
+            "crab-meat": [
+                "crab-stick",
+                "crab sticks",
+                "crabstick",
+                "imitation-crab",
+                "imitation crab",
+                "kani",
+                "kani kama",
+                "kanikama",
+            ],
+        }
+        alias_map = {}
+        valid_targets = set(class_names or [])
+        for canonical, aliases in alias_config.items():
+            if canonical not in valid_targets:
+                continue
+            for alias in aliases:
+                normalized = self._normalize_label(alias)
+                if not normalized:
+                    continue
+                alias_map[normalized] = canonical
+                alias_map[normalized.replace("-", "")] = canonical
+        return alias_map
+
     def _normalize_label(self, label: str) -> str:
         """Normalize a label string for comparison."""
         normalized = label.lower().strip()
@@ -249,11 +280,25 @@ Rules:
         
         if not self._normalized_label_map:
             return normalized
+
+        alias_target = self._alias_map.get(normalized)
+        if alias_target:
+            return alias_target
         
         if normalized in self._normalized_label_map:
             return self._normalized_label_map[normalized]
         
         collapsed = normalized.replace("-", "")
+        alias_target = self._alias_map.get(collapsed)
+        if alias_target:
+            return alias_target
+
+        # Anything that GPT labels as some kind of crab should be collapsed into crab-meat
+        if "crab" in collapsed:
+            crab_target = self._collapsed_label_map.get("crabmeat")
+            if crab_target:
+                return crab_target
+
         if collapsed in self._collapsed_label_map:
             return self._collapsed_label_map[collapsed]
         

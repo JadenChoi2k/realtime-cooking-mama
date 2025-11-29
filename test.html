@@ -3,125 +3,386 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RTC + Realtime API Test</title>
+    <title>Realtime Cooking Mama</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <style>
-      video#localVideo {
-        max-height: 640px; /* Adjust the height as needed */
-        width: auto; /* Maintain aspect ratio */
+      :root {
+        color-scheme: light;
       }
-      video#remoteVideo {
-        max-height: 10px; /* Adjust the height as needed */
-        width: auto; /* Maintain aspect ratio */
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      @keyframes popIn {
+        0% {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .msg-bubble {
+        animation: popIn 0.25s ease-out forwards;
+      }
+      .fridge-item-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.6rem 0.95rem;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        font-size: 0.8rem;
+        min-width: 140px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(10px);
+      }
+      .fridge-item-card .item-name {
+        font-weight: 600;
+        text-transform: capitalize;
+      }
+      .fridge-item-card .item-quantity {
+        font-size: 0.7rem;
+        opacity: 0.8;
+        margin-left: auto;
+      }
+      .fridge-item-card .remove-item {
+        background: transparent;
+        border: 0;
+        color: rgba(255, 255, 255, 0.7);
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+      }
+      .fridge-item-card .remove-item:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fecaca;
+      }
+      .listening-indicator {
+        width: 36px;
+        height: 36px;
+        border-radius: 9999px;
+        background: rgba(249, 115, 22, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(249, 115, 22, 0.3);
+      }
+      .listening-icon {
+        color: #f97316;
+        font-size: 16px;
+        animation: pulseIcon 1.5s ease-in-out infinite;
+      }
+      @keyframes pulseIcon {
+        0% {
+          transform: scale(0.9);
+          opacity: 0.7;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(0.9);
+          opacity: 0.7;
+        }
+      }
+      .recipe-recommendation-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        padding: 0.85rem 1rem;
+        border-radius: 1.25rem;
+        border: 1px solid #ffe0c2;
+        background: linear-gradient(145deg, #fff8f1, #ffffff);
+        box-shadow: 0 20px 35px rgba(249, 115, 22, 0.08);
+        min-width: 180px;
+      }
+      .recipe-recommendation-name {
+        font-weight: 600;
+        color: #ea580c;
       }
     </style>
   </head>
-  <body>
-    <h2>RTC + Realtime API Test</h2>
-    <video id="localVideo" autoplay playsinline muted></video>
-    <video id="remoteVideo" autoplay playsinline></video>
-    <div id="remote_audio_panel" style="overflow-y: auto; max-height: 140px; margin-top: 12px;">
-      <h5>Remote Audio Stats</h5>
-      <pre id="remote_audio_stats" style="background:#f5f5f5;padding:8px;border-radius:4px;">(waiting)</pre>
-    </div>
-    <div style="overflow-y: auto; height: 100px">
-      <h5 id="detection_description">Detections</h5>
-      <div id="detection"></div>
-    </div>
-    <div style="overflow-y: auto; height: 100px">
-      <h5>Fridge Items</h5>
-      <div id="fridge_items" style="display: flex; flex-wrap: wrap">
-        <!-- Example of a fridge item card -->
+  <body class="bg-gray-100 h-screen flex flex-col md:flex-row overflow-hidden">
+    <div
+      class="relative w-full h-[55%] md:h-full md:w-[60%] bg-black shadow-lg shrink-0 flex flex-col overflow-hidden"
+    >
+      <video
+        id="localVideo"
+        class="w-full h-full object-cover"
+        autoplay
+        playsinline
+        muted
+      ></video>
+      <video
+        id="remoteVideo"
+        autoplay
+        playsinline
+        class="absolute inset-0 opacity-0 pointer-events-none"
+      ></video>
 
-        <!-- <div class="fridge-item-card" id="fridge_item_brown-egg">
-          <span class="item-name">brown-egg</span>
-          <span class="item-quantity">3</span>
-          <button class="remove-item">x</button>
-        </div> -->
+      <div
+        class="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center border border-white/10 z-20"
+      >
+        <span
+          id="status_indicator"
+          class="w-2 h-2 rounded-full bg-red-500 mr-2 shadow-[0_0_12px_rgba(248,113,113,0.5)]"
+        ></span>
+        <span id="status_badge_text">Disconnected</span>
       </div>
-      <style>
-        .fridge-item-card {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border: 1px solid #ccc;
-          padding: 5px;
-          margin: 5px;
-          border-radius: 5px;
-          width: calc(33.33% - 10px); /* Adjust width for wrapping */
-          box-sizing: border-box;
-        }
-        .item-name {
-          font-weight: bold;
-        }
-        .item-quantity {
-          margin-left: 10px;
-        }
-        .remove-item {
-          background-color: red;
-          color: white;
-          border: none;
-          border-radius: 3px;
-          cursor: pointer;
-        }
-      </style>
-    </div>
-    <div style="overflow-y: auto; height: 100px">
-      <h5>Recipe Recommendation</h5>
-      <div id="recipe_recommend" style="display: flex; flex-wrap: wrap">
-        <!-- Example of a fridge item card -->
-        <!-- <div class="fridge-item-card" id="fridge_item_brown-egg">
-          <span class="recipe-recommendation-name">brown-egg</span>
-        </div> -->
+
+      <div class="absolute top-4 right-4 z-20 max-w-xs">
+        <div
+          class="bg-black/60 backdrop-blur-md text-white px-4 py-3 rounded-2xl border border-white/10 shadow-lg space-y-1"
+        >
+          <p
+            class="text-[10px] uppercase tracking-[0.2em] text-gray-300 font-semibold"
+          >
+            Detection
+          </p>
+          <p id="detection_description" class="text-xs text-gray-200">
+            Waiting for detections
+          </p>
+          <div
+            id="detection"
+            class="text-[11px] text-white/80 font-medium max-h-28 overflow-y-auto no-scrollbar"
+          >
+            Detections: []
+          </div>
+        </div>
       </div>
-      <style>
-        .recipe-recommendation-card {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border: 1px solid #ccc;
-          padding: 5px;
-          margin: 5px;
-          border-radius: 5px;
-          width: calc(33.33% - 10px); /* Adjust width for wrapping */
-          box-sizing: border-box;
-        }
-        .recipe-recommendation-name {
-          font-weight: bold;
-        }
-      </style>
+
+      <div
+        class="absolute bottom-0 left-0 w-full p-4 pb-6 bg-gradient-to-t from-black/90 via-black/70 to-transparent z-20 flex flex-col gap-3"
+      >
+        <div class="flex items-center justify-between">
+          <div
+            class="text-white/80 text-xs uppercase tracking-[0.35em] font-semibold"
+          >
+            Ingredients
+          </div>
+          <button
+            id="recommend_recipe"
+            class="text-[11px] bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-full border border-white/20 flex items-center gap-2 transition"
+          >
+            <i class="fas fa-magic text-orange-300"></i> Recommend Recipe
+          </button>
+        </div>
+        <div
+          id="fridge_items"
+          class="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto no-scrollbar pr-1"
+        >
+          <p class="text-white/70 text-xs italic">
+            No ingredients detected yet.
+          </p>
+        </div>
+      </div>
     </div>
-    <h5 id="recipe_selected"></h5>
-    <h5 id="recipe_step"></h5>
-    <h5 id="recipe_done"></h5>
-    <h3 id="user_message"></h3>
-    <h3 id="message"></h3>
-    <div id="connection_status" style="padding: 10px; margin: 10px 0; border-radius: 5px; display: none;">
-      <strong>Connection Status:</strong> <span id="status_text"></span>
+
+    <div
+      class="flex-1 bg-[#fdfdfd] md:border-l border-gray-200 flex flex-col shadow-[0_-10px_30px_rgba(0,0,0,0.05)]"
+    >
+      <div
+        class="px-4 py-3 border-b border-gray-100 bg-white flex items-center justify-between"
+      >
+        <h2 class="font-semibold text-gray-800 text-sm flex items-center gap-2">
+          <i class="fas fa-comments text-orange-500"></i>
+          Cooking Assistant
+        </h2>
+        <div class="flex gap-2 text-xs">
+          <button
+            id="select_crab"
+            class="px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition"
+          >
+            🦀 Crab Mode
+          </button>
+          <button
+            id="select_wrong"
+            class="px-3 py-1.5 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition"
+          >
+            ❌ Error Mode
+          </button>
+        </div>
+      </div>
+
+      <div
+        id="connection_status"
+        class="mx-4 mt-4 px-4 py-3 rounded-2xl border text-sm font-medium shadow-sm"
+        style="display: none"
+      >
+        <strong class="text-gray-600 mr-1">Connection Status:</strong>
+        <span id="status_text" class="text-gray-800">Not connected</span>
+      </div>
+
+      <div
+        id="error_message"
+        class="mx-4 mt-3 px-4 py-3 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm shadow-sm"
+        style="display: none"
+      >
+        <strong class="font-semibold mr-1">Error:</strong>
+        <span id="error_text"></span>
+      </div>
+
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <div id="recipe_progress_section" class="p-4 hidden">
+          <div
+            class="bg-white rounded-3xl border border-orange-100 shadow-sm p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <span
+                class="text-[10px] tracking-[0.3em] uppercase font-semibold text-orange-500"
+                >Recipe Progress</span
+              >
+              <span id="recipe_selected" class="text-xs text-gray-500"
+                >Recipe Selected: -</span
+              >
+            </div>
+            <p id="recipe_step" class="text-gray-800 text-sm font-medium">
+              Step 0: Waiting for ingredients...
+            </p>
+            <div class="flex flex-col md:flex-row gap-2">
+              <button
+                id="recipe_prev"
+                class="flex-1 bg-gray-50 border border-gray-200 text-gray-600 py-2 rounded-xl text-xs font-bold hover:bg-gray-100 transition"
+              >
+                Previous
+              </button>
+              <button
+                id="recipe_next"
+                class="flex-1 bg-orange-500 text-white py-2 rounded-xl text-xs font-bold shadow hover:bg-orange-600 transition"
+              >
+                Next Step
+              </button>
+              <button
+                id="recipe_done"
+                class="flex-1 bg-green-500 text-white py-2 rounded-xl text-xs font-bold shadow hover:bg-green-600 transition"
+              >
+                Mark Complete
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="recipe_section" class="px-4 hidden">
+          <div class="flex items-center justify-between text-xs text-gray-500">
+            <span class="uppercase tracking-[0.3em] font-semibold text-gray-400"
+              >Recipes</span
+            >
+            <span class="text-[11px] text-gray-400"
+              >Auto-updates as Yoribo reasons</span
+            >
+          </div>
+          <div
+            id="recipe_recommend"
+            class="flex flex-wrap gap-3 mt-3 pb-2"
+          ></div>
+        </div>
+
+        <div class="px-4 pt-2">
+          <div
+            id="listening_indicator"
+            class="hidden listening-indicator shadow-inner"
+            title="Listening to user"
+          >
+            <i class="fas fa-ear-listen listening-icon"></i>
+          </div>
+        </div>
+
+        <div
+          id="chat_scroller"
+          class="flex-1 overflow-y-auto px-4 py-4 no-scrollbar bg-gray-50"
+        >
+          <div id="chat_history" class="space-y-4"></div>
+        </div>
+
+        <!-- Removed remote audio stats / recipe completion cards to avoid blocking chat -->
+      </div>
+
+      <div class="p-4 border-t border-gray-100 bg-white">
+        <button
+          id="start"
+          class="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-2xl font-bold text-base shadow-lg shadow-orange-100 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-microphone"></i> Start Cooking Session
+        </button>
+
+        <div id="input_area" class="hidden mt-3 flex items-center gap-2">
+          <div
+            class="flex-1 bg-gray-100 rounded-full px-4 py-2.5 flex items-center border border-transparent focus-within:border-orange-300 focus-within:bg-white transition-all"
+          >
+            <input
+              type="text"
+              id="textInput"
+              placeholder="Type a manual instruction..."
+              class="bg-transparent w-full outline-none text-sm text-gray-800 placeholder-gray-400"
+            />
+          </div>
+          <button
+            id="sendMessage"
+            class="bg-orange-500 text-white w-11 h-11 rounded-full flex items-center justify-center shadow-md active:scale-95 transition hover:bg-orange-600"
+          >
+            <i class="fas fa-paper-plane text-sm"></i>
+          </button>
+          <button
+            id="closeConnection"
+            class="bg-gray-100 text-gray-500 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition hover:bg-gray-200"
+          >
+            <i class="fas fa-power-off text-sm"></i>
+          </button>
+        </div>
+      </div>
     </div>
-    <div id="error_message" style="padding: 10px; margin: 10px 0; background-color: #ffebee; color: #c62828; border-radius: 5px; display: none;">
-      <strong>Error:</strong> <span id="error_text"></span>
-    </div>
-    <button id="start">Start Audio Call</button>
-    <button id="closeConnection">Close Connection</button>
-    <input type="text" id="textInput" placeholder="Enter your message here" />
-    <button id="sendMessage">Send Message</button>
-    <div style="height: 12px"></div>
-    <button id="recommend_recipe">Recommend Recipe</button>
-    <button id="select_crab">Eat Crab Meat Sandwich!</button>
-    <button id="select_wrong">Eat Wrong Recipe!</button>
-    <button id="recipe_next">Next Step</button>
-    <button id="recipe_prev">Previous Step</button>
-    <button id="recipe_done">Complete Recipe</button>
 
     <script>
       let localConnection;
-      let messageDone = false;
       let remoteStream = new MediaStream();
       let signalingSocket;
       const localVideo = document.getElementById("localVideo");
       const remoteVideo = document.getElementById("remoteVideo");
+      const startButton = document.getElementById("start");
+      const closeConnectionButton = document.getElementById("closeConnection");
+      const chatHistoryElement = document.getElementById("chat_history");
+      const chatScroller = document.getElementById("chat_scroller");
+      const remoteAudioStatsEl = document.getElementById("remote_audio_stats");
+      const listeningIndicator = document.getElementById("listening_indicator");
+      const recipeProgressSection = document.getElementById(
+        "recipe_progress_section"
+      );
+      const recipeSection = document.getElementById("recipe_section");
       let lastDetectionTime = null;
       let statsInterval = null;
+      let isSessionActive = false;
+      let assistantTranscriptBuffer = "";
+      let userTranscriptBuffer = "";
+      let activeAssistantBubble = null;
+      let activeUserBubble = null;
+      let hasRecipeRecommendations = false;
+      let recipeSelected = false;
+      let activeUserBubbleTimestamp = null;
+      let messageOrderCounter = 0;
+      let userOrderOffset = 0;
 
       function logRemoteAudioStatus(label) {
         if (!remoteVideo.srcObject) {
@@ -138,9 +399,9 @@
             label: track.label,
           }));
         console.log(
-          `[RemoteAudio][${label}] paused=${remoteVideo.paused} muted=${remoteVideo.muted} volume=${remoteVideo.volume} tracks=${JSON.stringify(
-            audioTracks
-          )}`
+          `[RemoteAudio][${label}] paused=${remoteVideo.paused} muted=${
+            remoteVideo.muted
+          } volume=${remoteVideo.volume} tracks=${JSON.stringify(audioTracks)}`
         );
       }
 
@@ -180,8 +441,9 @@
           if (lines.length === 0) {
             lines.push("no inbound audio stats yet");
           }
-          document.getElementById("remote_audio_stats").innerText =
-            lines.join("\n");
+          if (remoteAudioStatsEl) {
+            remoteAudioStatsEl.innerText = lines.join("\n");
+          }
         } catch (err) {
           console.error("collectAudioStats error", err);
         }
@@ -198,7 +460,249 @@
         if (statsInterval) {
           clearInterval(statsInterval);
           statsInterval = null;
-          document.getElementById("remote_audio_stats").innerText = "(stopped)";
+          if (remoteAudioStatsEl) {
+            remoteAudioStatsEl.innerText = "(stopped)";
+          }
+        }
+      }
+
+      function updateSessionButton() {
+        if (!startButton) {
+          return;
+        }
+        if (isSessionActive) {
+          startButton.innerHTML = '<i class="fas fa-power-off"></i> Close';
+        } else {
+          startButton.innerHTML =
+            '<i class="fas fa-microphone"></i> Start Cooking Session';
+        }
+      }
+      updateSessionButton();
+
+      function setSessionActive(active) {
+        isSessionActive = active;
+        updateSessionButton();
+      }
+
+      function closeActiveSession() {
+        if (localConnection) {
+          localConnection.close();
+          localConnection = null;
+          console.log("P2P Connection closed.");
+        }
+        if (signalingSocket) {
+          signalingSocket.close();
+          signalingSocket = null;
+          console.log("WebSocket connection closed.");
+        }
+        stopStatsMonitor();
+        setSessionActive(false);
+        discardUserBubble();
+        recipeSelected = false;
+        hasRecipeRecommendations = false;
+        messageOrderCounter = 0;
+        userOrderOffset = 0;
+        updateRecipeRecommendationVisibility();
+        updateRecipeProgressVisibility();
+      }
+
+      function scrollChatToBottom() {
+        if (chatScroller) {
+          chatScroller.scrollTop = chatScroller.scrollHeight;
+        }
+      }
+
+      function updateRecipeProgressVisibility() {
+        if (!recipeProgressSection) {
+          return;
+        }
+        if (recipeSelected) {
+          recipeProgressSection.classList.remove("hidden");
+        } else {
+          recipeProgressSection.classList.add("hidden");
+        }
+      }
+
+      function updateRecipeRecommendationVisibility() {
+        if (!recipeSection) {
+          return;
+        }
+        if (hasRecipeRecommendations) {
+          recipeSection.classList.remove("hidden");
+        } else {
+          recipeSection.classList.add("hidden");
+        }
+      }
+
+      updateRecipeRecommendationVisibility();
+      updateRecipeProgressVisibility();
+
+      function allocateAssistantOrder() {
+        messageOrderCounter += 1;
+        userOrderOffset = 0;
+        return messageOrderCounter;
+      }
+
+      function allocateUserOrder() {
+        userOrderOffset += 0.01;
+        return messageOrderCounter + userOrderOffset;
+      }
+
+      function insertBubbleOrdered(wrapper, order) {
+        if (!chatHistoryElement) {
+          return;
+        }
+        wrapper.dataset.order = order.toString();
+        const children = Array.from(chatHistoryElement.children);
+        const nextSibling = children.find((child) => {
+          const childOrder = Number(child.dataset.order || 0);
+          return childOrder > order;
+        });
+        if (nextSibling) {
+          chatHistoryElement.insertBefore(wrapper, nextSibling);
+        } else {
+          chatHistoryElement.appendChild(wrapper);
+        }
+        scrollChatToBottom();
+      }
+
+      function createChatBubble(role, order) {
+        if (!chatHistoryElement) {
+          return null;
+        }
+        const wrapper = document.createElement("div");
+        wrapper.className =
+          role === "assistant"
+            ? "flex justify-end msg-bubble"
+            : "flex justify-start msg-bubble";
+        const bubble = document.createElement("div");
+        if (role === "assistant") {
+          bubble.className =
+            "bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 rounded-2xl rounded-tr-none max-w-[90%] text-sm shadow w-full";
+        } else {
+          bubble.className =
+            "bg-white text-gray-800 px-4 py-3 rounded-2xl rounded-tl-none max-w-[90%] text-sm shadow border border-gray-200 w-full";
+        }
+        const label = document.createElement("p");
+        label.className =
+          role === "assistant"
+            ? "text-[11px] uppercase text-white/70 tracking-[0.3em] mb-1"
+            : "text-[11px] uppercase text-gray-400 tracking-[0.3em] mb-1";
+        label.innerText = role === "assistant" ? "Assistant" : "User";
+        const textEl = document.createElement("div");
+        textEl.className =
+          role === "assistant" ? "font-semibold" : "font-medium text-gray-800";
+        bubble.appendChild(label);
+        bubble.appendChild(textEl);
+        wrapper.appendChild(bubble);
+        insertBubbleOrdered(wrapper, order ?? allocateAssistantOrder());
+        return { wrapper, textEl };
+      }
+
+      function setChatBubbleText(bubble, role, text) {
+        if (!bubble) {
+          return;
+        }
+        const prefix = role === "assistant" ? "GPT" : "User";
+        bubble.textEl.innerText = `${prefix}: ${text}`;
+        scrollChatToBottom();
+      }
+
+      function finalizeAssistantBubble(text) {
+        const content = (text || "").trim();
+        if (!content) {
+          return;
+        }
+        const bubble = createChatBubble("assistant", allocateAssistantOrder());
+        setChatBubbleText(bubble, "assistant", content);
+      }
+
+      function ensureUserBubble() {
+        if (!activeUserBubble) {
+          const order =
+            typeof activeUserBubbleTimestamp === "number"
+              ? activeUserBubbleTimestamp
+              : allocateUserOrder();
+          activeUserBubble = createChatBubble("user", order);
+          activeUserBubbleTimestamp = order;
+          userTranscriptBuffer = "";
+        }
+        return activeUserBubble;
+      }
+
+      function setListeningIndicator(visible) {
+        if (!listeningIndicator) {
+          return;
+        }
+        listeningIndicator.classList.toggle("hidden", !visible);
+      }
+
+      function startUserSpeech() {
+        const order = allocateUserOrder();
+        activeUserBubbleTimestamp = order;
+        activeUserBubble = createChatBubble("user", order);
+        if (activeUserBubble) {
+          activeUserBubble.textEl.innerHTML =
+            '<span class="inline-flex items-center justify-center text-orange-500"><i class="fas fa-ear-listen listening-icon"></i></span>';
+          activeUserBubble.wrapper.dataset.listening = "true";
+        }
+        userTranscriptBuffer = "";
+        setListeningIndicator(true);
+      }
+
+      function discardUserBubble() {
+        if (activeUserBubble && activeUserBubble.wrapper.parentNode) {
+          activeUserBubble.wrapper.parentNode.removeChild(
+            activeUserBubble.wrapper
+          );
+        }
+        activeUserBubble = null;
+        userTranscriptBuffer = "";
+        activeUserBubbleTimestamp = null;
+        setListeningIndicator(false);
+      }
+
+      function updateUserMessage(text, finalize = false) {
+        const bubble = ensureUserBubble();
+        const trimmed = (text || "").trim();
+        if (bubble.wrapper.dataset.listening === "true" && trimmed.length > 0) {
+          bubble.wrapper.dataset.listening = "false";
+        }
+        if (trimmed.length > 0) {
+          setChatBubbleText(bubble, "user", trimmed);
+        }
+        if (finalize) {
+          activeUserBubble = null;
+          userTranscriptBuffer = "";
+          activeUserBubbleTimestamp = null;
+          setListeningIndicator(false);
+        }
+      }
+
+      function updateStatusBadge(message, isError = false) {
+        const badgeText = document.getElementById("status_badge_text");
+        const indicator = document.getElementById("status_indicator");
+        if (badgeText) {
+          badgeText.innerText = message;
+        }
+        if (indicator) {
+          indicator.classList.remove(
+            "bg-red-500",
+            "bg-green-500",
+            "bg-yellow-400",
+            "animate-pulse"
+          );
+          if (isError) {
+            indicator.classList.add("bg-red-500");
+          } else if (
+            /ready|connected|initialized|complete|done|voice agent/i.test(
+              message
+            )
+          ) {
+            indicator.classList.add("bg-green-500");
+          } else {
+            indicator.classList.add("bg-yellow-400", "animate-pulse");
+          }
         }
       }
 
@@ -206,16 +710,15 @@
       function showConnectionStatus(message, isError = false) {
         const statusDiv = document.getElementById("connection_status");
         const statusText = document.getElementById("status_text");
-        statusDiv.style.display = "block";
-        statusText.innerText = message;
-        
-        if (isError) {
-          statusDiv.style.backgroundColor = "#ffebee";
-          statusDiv.style.color = "#c62828";
-        } else {
-          statusDiv.style.backgroundColor = "#e8f5e9";
-          statusDiv.style.color = "#2e7d32";
+        if (statusDiv) {
+          statusDiv.style.display = "block";
+          statusDiv.style.backgroundColor = isError ? "#ffebee" : "#e8f5e9";
+          statusDiv.style.color = isError ? "#c62828" : "#2e7d32";
         }
+        if (statusText) {
+          statusText.innerText = message;
+        }
+        updateStatusBadge(message, isError);
       }
 
       // Error message display function
@@ -233,11 +736,11 @@
         document.getElementById("error_message").style.display = "none";
       }
 
-      document.getElementById("start").onclick = async () => {
+      async function startCookingSession() {
         try {
           hideError();
           showConnectionStatus("WebSocket connecting...");
-          
+
           // Close existing connections if any
           if (localConnection) {
             localConnection.close();
@@ -253,19 +756,25 @@
             wsUrl = "ws://localhost:5050/signal";
           }
           signalingSocket = new WebSocket(wsUrl);
-          
+          setSessionActive(true);
+
           signalingSocket.onerror = (error) => {
             console.error("WebSocket error:", error);
             showConnectionStatus("WebSocket connection failed", true);
-            showError("Unable to reach the server. Please ensure it is running.");
+            showError(
+              "Unable to reach the server. Please ensure it is running."
+            );
+            closeActiveSession();
           };
-          
+
           signalingSocket.onclose = () => {
             console.log("WebSocket closed");
-            showConnectionStatus("Connection closed", true);
+            const wasActive = isSessionActive;
+            showConnectionStatus("Connection closed", wasActive);
             stopStatsMonitor();
+            setSessionActive(false);
           };
-          
+
           signalingSocket.onopen = () => {
             console.log("WebSocket connected");
             showConnectionStatus("WebSocket connected");
@@ -294,7 +803,10 @@
                   showConnectionStatus("Voice agent initialized ✓");
                   console.log("Assistant initialized successfully");
                 } else if (data.event === "assistant_error") {
-                  showConnectionStatus("Voice agent initialization failed", true);
+                  showConnectionStatus(
+                    "Voice agent initialization failed",
+                    true
+                  );
                   showError("Voice agent initialization failed: " + data.data);
                 } else if (data.event === "connected") {
                   showConnectionStatus("Server connected");
@@ -311,34 +823,46 @@
                 });
                 await localConnection.setRemoteDescription(remoteDescription);
               } else if (data.type === "assistant") {
-                if (data.event === "transcript") {
-                  let currentMessage =
-                    document.getElementById("message").innerText;
-                  if (messageDone || currentMessage === "") {
-                    messageDone = false;
-                    currentMessage = "GPT: ";
-                  }
-                  document.getElementById("message").innerText =
-                    currentMessage + data.data;
-                } else if (data.event === "message") {
-                  document.getElementById(
-                    "message"
-                  ).innerText = `GPT: ${data.data}`;
-                  messageDone = true;
+                if (data.event === "message") {
+                  finalizeAssistantBubble(data.data || "");
                 } else if (data.event === "recipe_recommend") {
                   drawRecipeRecommendationList(data.data);
                 }
               } else if (data.type === "user") {
                 if (data.event === "transcript") {
-                  document.getElementById("user_message").innerText = `User: ${
-                    data.data.length > 0 ? data.data : "[unaudible]"
-                  }`;
+                  const chunk = (data.data || "").trim();
+                  if (!activeUserBubble) {
+                    startUserSpeech();
+                  }
+                  if (chunk.length > 0) {
+                    if (
+                      userTranscriptBuffer.length > 0 &&
+                      chunk.startsWith(userTranscriptBuffer)
+                    ) {
+                      userTranscriptBuffer = chunk;
+                    } else {
+                      userTranscriptBuffer =
+                        `${userTranscriptBuffer} ${chunk}`.trim();
+                    }
+                    updateUserMessage(userTranscriptBuffer);
+                  }
                 } else if (data.event === "speech_started") {
-                  document.getElementById("user_message").innerText =
-                    "User: [speaking ...]";
+                  if (activeUserBubble) {
+                    const leftover = userTranscriptBuffer.trim();
+                    if (leftover.length > 0) {
+                      updateUserMessage(leftover, true);
+                    } else {
+                      discardUserBubble();
+                    }
+                  }
+                  startUserSpeech();
                 } else if (data.event === "speech_stopped") {
-                  document.getElementById("user_message").innerText =
-                    "User: [speaking done]";
+                  const finalText = userTranscriptBuffer.trim();
+                  if (finalText.length > 0) {
+                    updateUserMessage(finalText, true);
+                  } else {
+                    discardUserBubble();
+                  }
                 } else if (data.event === "object_detection") {
                   if (lastDetectionTime) {
                     const timeDiff = Date.now() - lastDetectionTime;
@@ -353,14 +877,22 @@
                 } else if (data.event === "fridge_items") {
                   drawFridgeItems(data.data);
                 } else if (data.event === "recipe_selected") {
+                  recipeSelected = true;
+                  updateRecipeProgressVisibility();
                   document.getElementById(
                     "recipe_selected"
                   ).innerText = `Recipe Selected: ${data.data.name}`;
                 } else if (data.event === "recipe_step") {
+                  recipeSelected = true;
+                  updateRecipeProgressVisibility();
                   document.getElementById(
                     "recipe_step"
                   ).innerText = `Step ${data.data.order}: ${data.data.description}`;
                 } else if (data.event === "recipe_completed") {
+                  recipeSelected = false;
+                  hasRecipeRecommendations = false;
+                  updateRecipeRecommendationVisibility();
+                  updateRecipeProgressVisibility();
                   document.getElementById(
                     "recipe_done"
                   ).innerText = `Recipe Done! (${JSON.stringify(data.data)})`;
@@ -416,7 +948,7 @@
           localConnection.onconnectionstatechange = (event) => {
             const state = event.target.connectionState;
             console.log("P2P Connection state:", state);
-            
+
             if (state === "connected") {
               showConnectionStatus("P2P connected ✓");
               startStatsMonitor();
@@ -424,7 +956,9 @@
               showConnectionStatus("P2P connecting...");
             } else if (state === "failed") {
               showConnectionStatus("P2P connection failed", true);
-              showError("P2P connection failed. Please check network settings.");
+              showError(
+                "P2P connection failed. Please check network settings."
+              );
               stopStatsMonitor();
             } else if (state === "disconnected") {
               showConnectionStatus("P2P disconnected", true);
@@ -450,9 +984,7 @@
             remoteVideo
               .play()
               .then(() => logRemoteAudioStatus("play promise resolved"))
-              .catch((err) =>
-                console.error("remoteVideo play() failed:", err)
-              );
+              .catch((err) => console.error("remoteVideo play() failed:", err));
             logRemoteAudioStatus("ontrack");
             startStatsMonitor();
           };
@@ -471,8 +1003,25 @@
             "Error during offer creation or media stream acquisition:",
             error
           );
+          closeActiveSession();
         }
-      };
+      }
+
+      if (startButton) {
+        startButton.onclick = async () => {
+          if (isSessionActive) {
+            closeActiveSession();
+          } else {
+            await startCookingSession();
+          }
+        };
+      }
+
+      if (closeConnectionButton) {
+        closeConnectionButton.onclick = () => {
+          closeActiveSession();
+        };
+      }
 
       document.getElementById("sendMessage").onclick = () => {
         const textInput = document.getElementById("textInput").value;
@@ -509,20 +1058,6 @@
         signalingSocket.send(
           JSON.stringify({ type: "recipe_cook", data: "done" })
         );
-      };
-
-      document.getElementById("closeConnection").onclick = () => {
-        if (localConnection) {
-          localConnection.close();
-          localConnection = null;
-          console.log("P2P Connection closed.");
-        }
-        if (signalingSocket) {
-          signalingSocket.close();
-          signalingSocket = null;
-          console.log("WebSocket connection closed.");
-        }
-        stopStatsMonitor();
       };
 
       function drawFridgeItems(items) {
@@ -569,7 +1104,16 @@
       function drawRecipeRecommendationList(recommendations) {
         const recipeRecommendation =
           document.getElementById("recipe_recommend");
+        if (!recipeRecommendation) {
+          return;
+        }
         recipeRecommendation.innerHTML = "";
+        hasRecipeRecommendations =
+          !!recommendations && recommendations.length > 0;
+        updateRecipeRecommendationVisibility();
+        if (!hasRecipeRecommendations) {
+          return;
+        }
         for (const recommendation of recommendations) {
           drawRecipeRecommendation(recommendation);
         }
