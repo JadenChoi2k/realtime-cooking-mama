@@ -137,13 +137,13 @@ The system implements an intelligent fallback mechanism for object detection:
 1. **Primary Detection**: YOLO model (`yori_detector.onnx`) attempts to detect ingredients
 2. **Fallback Trigger**: If YOLO returns empty results, GPT-4 Vision API is called
 3. **Throttling**: Minimum 5-second interval between GPT Vision calls to control costs
-   제4. **Broader Detection**: GPT Vision can detect ingredients not in the YOLO training set
-4. **Cost Optimization**:
+4. **Strict Filtering**: GPT Vision only returns ingredients that exist in `data-names.yaml` (strict mode)
+5. **Cost Optimization**:
    - Images are resized to 512x512 before sending
    - Low detail mode is used for API calls
    - Estimated cost: ~$0.01 per image, max 12 calls/minute with throttling
 
-**Use Case**: When users show ingredients that YOLO wasn't trained on, or in poor lighting conditions, GPT Vision provides a reliable backup detection method.
+**Use Case**: When YOLO fails to detect ingredients (e.g., poor lighting conditions, unusual angles), GPT Vision provides a reliable backup detection method. However, GPT Vision will only return ingredients that exist in the `data-names.yaml` file (strict filtering mode).
 
 ### WebSocket Protocol
 

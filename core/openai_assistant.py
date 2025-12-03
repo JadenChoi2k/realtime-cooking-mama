@@ -174,11 +174,18 @@ RECOMMEND_PROMPT = """You must recommend between 0 to 5 recipes suitable for the
 }
 **Recipe List End**
 
-is_in_fridge indicates whether each ingredient is currently in the fridge. Each recipe has required and non-required (optional) ingredients. The more ingredients from the required list that are in the fridge, the more likely the recipe should be recommended. However, recipes should NOT be recommended if required ingredients are not present.
+**Input Format**
+1. Fridge inventory status. A data list is provided.
+2. Context: The user's current context information is provided as text.
 
-If there are no recommendable recipes, return an empty list `{"recipes": []}`. Otherwise, return the recommended recipes in the following format:
-- Return format: {"recipes": [{"id": 1, "reason": "..."}, {"id": 3, "reason": "..."}]}
-- You must include the reason field. The reason should be a brief explanation in one or two sentences about why the recipe is recommended."""
+**Important Notes**
+1. The user is currently looking around the fridge. Therefore, if is_in_fridge is false for an ingredient, assume that the user already has that ingredient.
+2. Ingredients with required value of false are not considered in the fridge inventory situation.
+3. Recommend recipes that are suitable for the current fridge inventory status.
+4. Recommended recipes are returned as a list of recipe IDs. Only choose from the given recipes.
+5. If crab-meat is present, include crab meat sandwich in the recommendations.
+
+You are now ready to provide recipe recommendations to the user based on fridge ingredients."""
 
 
 class OpenAIAssistant:

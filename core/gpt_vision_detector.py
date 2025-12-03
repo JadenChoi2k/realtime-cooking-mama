@@ -45,15 +45,20 @@ class GPTVisionDetector:
         self._alias_map = self._build_alias_map(self.class_names)
         
         # System prompt for food ingredient detection
-        self.system_prompt = """You are a food ingredient detection system. 
+        valid_classes_str = ", ".join(self.class_names) if self.class_names else "none"
+        self.system_prompt = f"""You are a food ingredient detection system. 
 Analyze the image and identify all food ingredients visible.
 Focus on raw ingredients like eggs, vegetables, meats, condiments, sauces, bread, etc.
 Return ONLY a JSON array with this exact format:
-[{"name": "ingredient-name", "confidence": 0.95}]
+[{{"name": "ingredient-name", "confidence": 0.95, "count": 1}}]
 
 Rules:
 - Use lowercase, hyphenated names (e.g., "brown-egg", "chicken-breast")
+- ONLY return ingredients from this exact list: {valid_classes_str}
+- If an ingredient is not in the list above, DO NOT include it
 - Confidence should be 0.7-1.0 based on visibility and certainty
+- For "crab-meat" (게맛살), count the number of individual pieces/sticks visible and set "count" to that number
+- For other ingredients, "count" defaults to 1 if not specified
 - Only include items you're confident about
 - If no food ingredients visible, return empty array []
 """
@@ -184,16 +189,36 @@ Rules:
                 if not mapped_name:
                     continue
                 
-                # Create ObjectDetection with full image as bounding box
-                detection = ObjectDetection(
-                    class_name=mapped_name,
-                    confidence=self._clamp_confidence(confidence),
-                    x1=0,
-                    y1=0,
-                    x2=width,
-                    y2=height
-                )
-                detections.append(detection)
+                # 게맛살의 경우 개수만큼 반환
+                try:
+                    count = int(item.get("count", 1))
+                    count = max(1, count)  # 최소 1개 보장
+                except (ValueError, TypeError):
+                    count = 1
+                
+                if mapped_name == "crab-meat":
+                    # 게맛살이 여러 개인 경우 개수만큼 ObjectDetection 생성
+                    for _ in range(count):
+                        detection = ObjectDetection(
+                            class_name=mapped_name,
+                            confidence=self._clamp_confidence(confidence),
+                            x1=0,
+                            y1=0,
+                            x2=width,
+                            y2=height
+                        )
+                        detections.append(detection)
+                else:
+                    # 일반적인 경우 1개만 생성
+                    detection = ObjectDetection(
+                        class_name=mapped_name,
+                        confidence=self._clamp_confidence(confidence),
+                        x1=0,
+                        y1=0,
+                        x2=width,
+                        y2=height
+                    )
+                    detections.append(detection)
             
             return detections
             
@@ -272,14 +297,15 @@ Rules:
     def _map_to_known_label(self, raw_label: str) -> str:
         """
         Map GPT provided label to known class list.
-        Falls back to normalized label when no close match exists.
+        엄격하게: data-names.yaml에 있는 것만 반환, 매핑 실패 시 빈 문자열 반환.
         """
         normalized = self._normalize_label(raw_label)
         if not normalized:
             return ""
         
+        # class_names가 없으면 빈 문자열 반환 (엄격 모드)
         if not self._normalized_label_map:
-            return normalized
+            return ""
 
         alias_target = self._alias_map.get(normalized)
         if alias_target:
@@ -311,7 +337,8 @@ Rules:
         if best_collapsed:
             return self._collapsed_label_map[best_collapsed[0]]
         
-        return normalized
+        # 엄격 모드: 매핑 실패 시 빈 문자열 반환 (기존에는 normalized를 반환했음)
+        return ""
 
     def _clamp_confidence(self, confidence: float) -> float:
         """Clamp confidence to 0-1 range."""
